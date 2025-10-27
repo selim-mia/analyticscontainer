@@ -1,0 +1,28 @@
+{%- assign _gtm = gtm_id | default: shop.metafields.analyticscontainer.gtm_id -%}
+{%- if _gtm and _gtm != blank -%}
+  {%- if part == 'head' -%}
+    <script>
+      (function() {
+        function loadGTM(id){
+          if (window.__ac_gtm_loaded__) return;
+          window.__ac_gtm_loaded__ = true;
+          window.dataLayer = window.dataLayer || [];
+          window.dataLayer.push({event:'ac_boot'});
+          var s=document.createElement('script'); s.async=true;
+          s.src='https://www.googletagmanager.com/gtm.js?id='+encodeURIComponent(id);
+          document.head.appendChild(s);
+        }
+        function init(){
+          var p = window.Shopify && Shopify.customerPrivacy;
+          if (!p || !p.getConsent){ loadGTM('{{ _gtm | escape }}'); return; }
+          p.getConsent().then(function(c){
+            if (!c || c.analyticsProcessingAllowed) loadGTM('{{ _gtm | escape }}');
+          });
+        }
+        if (document.readyState==='loading'){ document.addEventListener('DOMContentLoaded', init); } else { init(); }
+      })();
+    </script>
+  {%- elsif part == 'body' -%}
+    <noscript><iframe src="https://www.googletagmanager.com/ns.html?id={{ _gtm | escape }}" height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+  {%- endif -%}
+{%- endif -%}

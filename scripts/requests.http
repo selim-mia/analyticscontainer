@@ -1,0 +1,22 @@
+### VS Code REST Client sample requests
+
+@host = http://localhost:3000
+
+### 1) Save GTM ID to metafield
+POST {{host}}/api/settings/gtm
+Content-Type: application/json
+
+{
+  "shop": "YOUR-SHOP.myshopify.com",
+  "accessToken": "shpat_xxx",
+  "gtmId": "GTM-XXXXXXX"
+}
+
+### 2) Activate (create snippet + inject render tags)
+POST {{host}}/api/activate
+Content-Type: application/json
+
+{
+  "shop": "YOUR-SHOP.myshopify.com",
+  "accessToken": "shpat_xxx"
+}
