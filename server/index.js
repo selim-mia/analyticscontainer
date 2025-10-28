@@ -1,5 +1,6 @@
 // server/index.js
 import express from "express";
+import path from "path";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
 dotenv.config();
@@ -1460,6 +1461,18 @@ app.post("/api/pixel/enable", async (req, res) => {
     res.status(400).json({ error: String(e.message) });
   }
 });
+
+// সার্ভার-লেভেলে (শুধু pixel.js এর জন্য) CORS/MIME ঠিক করা ভালো
+app.get("/pixel.js", (req, res) => {
+  res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+  // ঐচ্ছিক—কঠোর হলে দিন (Shopify storefront থেকে লোড করতে)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+  res.sendFile(path.join(process.cwd(), "public/pixel.js"));
+});
+
+// বাকি স্ট্যাটিক ফাইল
+app.use(express.static(path.join(process.cwd(), "public")));
 
 // ---------- Simple Embedded UI ----------
 app.get("/admin/settings", (req, res) => {
