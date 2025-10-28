@@ -1339,7 +1339,7 @@ app.post("/api/gtm/enable", async (req, res) => {
   }
 });
 
-// 2) Enable DataLayer (snippet + render in <head>)
+// 2) Enable DataLayer (snippet + render after GTM in <head>)
 app.post("/api/datalayer/enable", async (req, res) => {
   try {
     const { shop, accessToken } = req.body || {};
@@ -1347,18 +1347,24 @@ app.post("/api/datalayer/enable", async (req, res) => {
     assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
 
     const themeId = await getMainThemeId(shop, accessToken);
+
+    // upload snippet
     await putAsset(shop, accessToken, themeId, "snippets/ultimate-datalayer.liquid", UDL_SNIPPET_VALUE);
 
+    // fetch theme.liquid and insert render right after GTM
     const themeKey = "layout/theme.liquid";
     const asset = await getAsset(shop, accessToken, themeId, themeKey);
     const orig = asset.value || Buffer.from(asset.attachment, "base64").toString("utf8");
-    const patched = injectSnippetRenderHeadOnly(orig);
+
+    const patched = insertRenderAfterGTM(orig); // <<— use this
     if (patched !== orig) await putAsset(shop, accessToken, themeId, themeKey, patched);
-    res.json({ ok:true });
+
+    res.json({ ok: true });
   } catch (e) {
     res.status(400).json({ error: String(e.message) });
   }
 });
+
 
 // 3) Enable custom Web Pixel (GraphQL)
 app.post("/api/pixel/enable", async (req, res) => {
