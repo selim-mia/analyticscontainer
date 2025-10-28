@@ -49,7 +49,15 @@ async function putAsset(shop, token, themeId, key, value) {
 }
 
 // ===== Payloads from your uploads =====
-const UDL_SNIPPET_VALUE = `<script> 
+const UDL_SNIPPET_VALUE = `<script>
+/**
+  * Author: Md Hasanuzzamna
+  * Email: info@leomeasure.com
+  * Linkedin: https://linkedin.com/in/md-h
+  * Version: 3.6.1
+  * Last Update: 27 May 2025
+  */
+  
   (function() {
       class Ultimate_Shopify_DataLayer {
         constructor() {
@@ -262,13 +270,13 @@ const UDL_SNIPPET_VALUE = `<script>
                   const search_term = urlParams.get("q");
 
                   debounce(function() {
-                    fetch(\`${self.storeURL}/search/suggest.json?q=${search_term}&resources[type]=product&requestFrom=uldt\`)
+                    fetch(\`\${self.storeURL}/search/suggest.json?q=\${search_term}&resources[type]=product&requestFrom=uldt\`)
                       .then(res => res.json())
                       .then(function(data) {
                             const products = data.resources.results.products;
                             if(products.length) {
                               const fetchRequests = products.map(product =>
-                                fetch(\`${self.storeURL}/${product.url.split('?')[0]}.js\`)
+                                fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`)
                                   .then(response => response.json())
                                   .catch(error => console.error('Error fetching:', error))
                               );
@@ -387,13 +395,13 @@ const UDL_SNIPPET_VALUE = `<script>
                                 const search_term = urlParams.get("q");
 
                                 debounce(function() {
-                                    fetch(\`${self.storeURL}/search/suggest.json?q=${search_term}&resources[type]=product&requestFrom=uldt\`)
+                                    fetch(\`\${self.storeURL}/search/suggest.json?q=\${search_term}&resources[type]=product&requestFrom=uldt\`)
                                       .then(res => res.json())
                                       .then(function(data) {
                                             const products = data.resources.results.products;
                                             if(products.length) {
                                               const fetchRequests = products.map(product =>
-                                                fetch(\`${self.storeURL}/${product.url.split('?')[0]}.js\`)
+                                                fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`)
                                                   .then(response => response.json())
                                                   .catch(error => console.error('Error fetching:', error))
                                               );
@@ -493,13 +501,13 @@ const UDL_SNIPPET_VALUE = `<script>
             const urlParams = new URLSearchParams(queryString);
             const search_term = urlParams.get("q");
                 
-            fetch(\`{{ shop.secure_url }}/search/suggest.json?q=${search_term}&resources[type]=product&requestFrom=uldt\`)
+            fetch(\`{{ shop.secure_url }}/search/suggest.json?q=\${search_term}&resources[type]=product&requestFrom=uldt\`)
             .then(res => res.json())
             .then(function(data) {
                   const products = data.resources.results.products;
                   if(products.length) {
                     const fetchRequests = products.map(product =>
-                      fetch(\`${self.storeURL}/${product.url.split('?')[0]}.js\`)
+                      fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`)
                         .then(response => response.json())
                         .catch(error => console.error('Error fetching:', error))
                     );
@@ -933,7 +941,7 @@ const UDL_SNIPPET_VALUE = `<script>
                'items': data.items.map((item, index) => {
                  const dataLayerItem = {
                     'index': index,
-                    'item_id': this.formattedItemId  ? \`shopify_${this.countryCode}_${item.product_id}_${item.variant_id}\` : item.product_id.toString(),
+                    'item_id': this.formattedItemId  ? \`shopify_\${this.countryCode}_\${item.product_id}_\${item.variant_id}\` : item.product_id.toString(),
                     'product_id': item.product_id.toString(),
                     'variant_id': item.variant_id.toString(),
                     'item_name': item.product_title,
@@ -1186,15 +1194,15 @@ function getPageLocation(event) {
   
     if(gclidWithPageLocation) {
       const name = '_gcl_aw';
-      const value = \`; ${document.cookie}\`;
-      const parts = value.split(\`; ${name}=\`);
+      const value = \`; \${document.cookie}\`;
+      const parts = value.split(\`; \${name}=\`);
 
       if (parts.length === 2) {
         const gclidCookie = parts.pop().split(';').shift();
         const gclidParts = gclidCookie.split('.');
         const gclid = gclidParts[gclidParts.length - 1];
         
-        pageLocation = pageLocation.includes('?') ? \`${pageLocation}&gclid=${gclid}\` : \`${pageLocation}?gclid=${gclid}\`;
+        pageLocation = pageLocation.includes('?') ? \`\${pageLocation}&gclid=\${gclid}\` : \`\${pageLocation}?gclid=\${gclid}\`;
       }
     }
   return pageLocation;
