@@ -51,11 +51,9 @@ async function putAsset(shop, token, themeId, key, value) {
 // ===== Payloads from your uploads =====
 const UDL_SNIPPET_VALUE = `<script>
 /**
-  * Author: Md Hasanuzzamna
-  * Email: info@leomeasure.com
-  * Linkedin: https://linkedin.com/in/md-h
-  * Version: 3.6.1
-  * Last Update: 27 May 2025
+  * Author: analytics-container
+  * Email: analytics-container@gmail.com 
+  * Last Update: 27 September 2025
   */
   
   (function() {
