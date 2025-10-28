@@ -1394,98 +1394,84 @@ app.post("/api/datalayer/enable", async (req, res) => {
   }
 });
 
-// 3) Enable custom Web Pixel (Checkout) → install/update a customer web pixel
+// 3) Enable custom Web Pixel (Checkout) → upsert a **Custom Pixel**
 app.post("/api/pixel/enable", async (req, res) => {
   try {
     const { shop, accessToken, name = "AnalyticsContainer Pixel" } = req.body || {};
     assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
     assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
 
-    // 1) list pixels
+    // ---- GraphQL: list existing custom pixels
     const listQ = `
       query {
-        webPixels(first: 50) {
-          edges { node { id name } }
+        customPixels(first: 50) {
+          edges { node { id name enabled } }
         }
-      }`;
-    const listR = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
-      method:"POST",
-      headers:{ "X-Shopify-Access-Token":accessToken, "Content-Type":"application/json" },
+      }
+    `;
+    const listR = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
+      method: "POST",
+      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
       body: JSON.stringify({ query: listQ })
-    }).then(r=>r.json());
+    }).then(r => r.json());
 
-    // Top-level GraphQL errors guard
-    if (listR?.errors?.length) {
-      const msg = listR.errors.map(e => e.message).join("; ");
-      throw new Error(`GraphQL(list) error: ${msg}`);
-    }
+    const existing = (listR?.data?.customPixels?.edges || [])
+      .map(e => e.node)
+      .find(n => (n.name || "").toLowerCase() === name.toLowerCase());
 
-    const existing = (listR?.data?.webPixels?.edges || [])
-      .map(e=>e.node)
-      .find(n => (n.name||"").toLowerCase() === name.toLowerCase());
-
-    // mutations (note: field is "javascript" — all lowercase)
+    // ---- GraphQL: create / update custom pixel
     const mutationCreate = `
-      mutation webPixelCreate($webPixel: WebPixelInput!) {
-        webPixelCreate(webPixel: $webPixel) {
+      mutation customPixelCreate($input: CustomPixelInput!) {
+        customPixelCreate(customPixel: $input) {
+          customPixel { id name enabled }
           userErrors { field message }
-          webPixel { id name }
         }
-      }`;
+      }
+    `;
     const mutationUpdate = `
-      mutation webPixelUpdate($id: ID!, $webPixel: WebPixelInput!) {
-        webPixelUpdate(id: $id, webPixel: $webPixel) {
+      mutation customPixelUpdate($id: ID!, $input: CustomPixelInput!) {
+        customPixelUpdate(id: $id, customPixel: $input) {
+          customPixel { id name enabled }
           userErrors { field message }
-          webPixel { id name }
         }
-      }`;
+      }
+    `;
 
+    // Your module code (must be ESM: export default (analytics) => { ... })
     const input = {
       name,
       enabled: true,
-      settings: "{}",          // JSON as string
-      javascript: CUSTOM_PIXEL_JS   // <-- LOWERCASE "javascript"
+      // Shopify expects module source in `source` with `inline` code for Custom Pixels
+      source: { inline: { code: CUSTOM_PIXEL_JS } },
+      settings: "{}"
     };
 
-    let mu, vars;
-    if (existing?.id) {
-      mu = mutationUpdate;
-      vars = { id: existing.id, webPixel: input };
-    } else {
-      mu = mutationCreate;
-      vars = { webPixel: input };
-    }
+    const mu = existing?.id ? mutationUpdate : mutationCreate;
+    const vars = existing?.id ? { id: existing.id, input } : { input };
 
-    const mq = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
+    const mq = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
       method: "POST",
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type":"application/json" },
+      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
       body: JSON.stringify({ query: mu, variables: vars })
-    }).then(r=>r.json());
+    }).then(r => r.json());
 
-    // Top-level errors
-    if (mq?.errors?.length) {
-      const msg = mq.errors.map(e => e.message).join("; ");
-      throw new Error(`GraphQL(mutation) error: ${msg}`);
-    }
+    const errs =
+      mq?.data?.customPixelCreate?.userErrors ||
+      mq?.data?.customPixelUpdate?.userErrors ||
+      [];
 
-    const createRes = mq?.data?.webPixelCreate;
-    const updateRes = mq?.data?.webPixelUpdate;
-    const userErrors = (createRes?.userErrors || updateRes?.userErrors || []);
-    if (userErrors.length) {
-      throw new Error(`userErrors: ` + userErrors.map(u => u.message).join("; "));
-    }
+    if (errs.length) throw new Error(errs.map(e => e.message).join("; "));
 
-    const pixel = createRes?.webPixel || updateRes?.webPixel;
-    if (!pixel?.id) {
-      // Nothing came back even without errors—rare, but guard anyway
-      throw new Error("Pixel mutation returned no pixel id.");
-    }
+    const pixel =
+      mq?.data?.customPixelCreate?.customPixel ||
+      mq?.data?.customPixelUpdate?.customPixel;
 
-    res.json({ ok:true, pixel });
+    res.json({ ok: true, pixel });
   } catch (e) {
     res.status(400).json({ error: String(e.message) });
   }
 });
+
 
 
 // ---------- Simple Embedded UI ----------
