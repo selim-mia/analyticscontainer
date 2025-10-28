@@ -1394,7 +1394,7 @@ app.post("/api/datalayer/enable", async (req, res) => {
   }
 });
 
-// 3) Enable custom Web Pixel (Checkout) — robust diagnostics
+// 3) Enable custom Web Pixel (Checkout) — create-or-update with 406 fix
 app.post("/api/pixel/enable", async (req, res) => {
   const prettyErr = (msg, detail) =>
     res.status(400).json({ error: msg, detail });
@@ -1404,119 +1404,109 @@ app.post("/api/pixel/enable", async (req, res) => {
     assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
     assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
 
+    const API_VERSION = "2025-10";
     const base = `https://${shop}/admin/api/${API_VERSION}`;
+    const commonHeaders = {
+      "X-Shopify-Access-Token": accessToken,
+      "Content-Type": "application/json",
+      "Accept": "application/json",            // ← important for 406
+    };
 
-    // --- probe: does this store expose the web_pixels endpoint?
+    // Probe: do we have access + endpoint?
     const probe = await fetch(`${base}/web_pixels.json?limit=1`, {
       method: "GET",
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        "Content-Type": "application/json",
-      },
+      headers: commonHeaders,
     });
 
     if (probe.status === 401 || probe.status === 403) {
       const text = await probe.text().catch(() => "");
       return prettyErr(
-        "Unauthorized: token is invalid or missing scopes.",
-        "Make sure this app’s Admin API token (shpat_…) includes at least read_pixels & write_pixels (and optionally read_custom_pixels & write_custom_pixels). Reinstall the app after changing scopes."
+        "Unauthorized: token invalid or missing scopes.",
+        "Ensure Admin API token has read_pixels & write_pixels (and optionally read_custom_pixels & write_custom_pixels). Reinstall the app after changing scopes."
       );
     }
-
     if (probe.status === 404 || probe.status === 405) {
       return prettyErr(
-        "This store/API version doesn’t expose Web Pixels REST.",
-        "Open Shopify Admin → Settings → Customer events → Add pixel → paste the code manually once. After it exists, this app can update it by name."
+        "Web Pixels REST not available on this store/API.",
+        "Create a pixel once at Settings → Customer events → Add custom pixel, then click Enable again to update it."
       );
     }
-
     if (!probe.ok) {
       const text = await probe.text().catch(() => "");
       return prettyErr(`Probe failed (${probe.status})`, text);
     }
 
-    // --- try to create
+    // Try CREATE
     const createBody = {
       web_pixel: {
         name,
         enabled: true,
-        settings: "{}", // must be a JSON string
-        javascript: CUSTOM_PIXEL_JS,
+        settings: "{}",                 // must be JSON string
+        javascript: CUSTOM_PIXEL_JS,    // your code
       },
     };
 
     const createRes = await fetch(`${base}/web_pixels.json`, {
       method: "POST",
-      headers: {
-        "X-Shopify-Access-Token": accessToken,
-        "Content-Type": "application/json",
-      },
+      headers: commonHeaders,
       body: JSON.stringify(createBody),
     });
 
     const createJson = await createRes.json().catch(() => ({}));
 
-    if (createRes.status === 401 || createRes.status === 403) {
+    if (createRes.ok) {
+      return res.json({ ok: true, pixel: createJson.web_pixel, mode: "created" });
+    }
+
+    // If create fails (406/422 etc) → list & update existing pixel
+    const listRes = await fetch(`${base}/web_pixels.json`, {
+      method: "GET",
+      headers: commonHeaders,
+    });
+    const listJson = await listRes.json().catch(() => ({}));
+
+    // Prefer one matching by name; otherwise take the first pixel (manual-first-run path)
+    const existing =
+      (listJson.web_pixels || []).find(p => (p.name || "").toLowerCase() === name.toLowerCase()) ||
+      (listJson.web_pixels || [])[0];
+
+    if (!existing) {
       return prettyErr(
-        "Unauthorized when creating pixel.",
-        "Token ok but scopes likely missing: grant write_pixels (and read_pixels). Reinstall app to apply scopes."
+        `Create failed (${createRes.status})`,
+        createJson?.errors || createJson || "No pixel to update. Create one in Admin (Settings → Customer events) then try again."
       );
     }
 
-    // If name already exists (422), list and update
-    if (!createRes.ok) {
-      const listRes = await fetch(`${base}/web_pixels.json`, {
-        method: "GET",
-        headers: {
-          "X-Shopify-Access-Token": accessToken,
-          "Content-Type": "application/json",
-        },
-      });
-      const listJson = await listRes.json().catch(() => ({}));
-      const existing = (listJson.web_pixels || []).find(
-        (p) => (p.name || "").toLowerCase() === name.toLowerCase()
+    const updateBody = {
+      web_pixel: {
+        id: existing.id,
+        name: existing.name || name,
+        enabled: true,
+        settings: existing.settings || "{}",
+        javascript: CUSTOM_PIXEL_JS,
+      },
+    };
+
+    const updRes = await fetch(`${base}/web_pixels/${existing.id}.json`, {
+      method: "PUT",
+      headers: commonHeaders,
+      body: JSON.stringify(updateBody),
+    });
+    const updJson = await updRes.json().catch(() => ({}));
+
+    if (!updRes.ok) {
+      return prettyErr(
+        `Update failed (${updRes.status})`,
+        updJson?.errors || updJson || "No details"
       );
-
-      if (!existing) {
-        return prettyErr(
-          `Create failed (${createRes.status})`,
-          createJson?.errors || createJson || "No details"
-        );
-      }
-
-      const updateBody = {
-        web_pixel: {
-          id: existing.id,
-          name,
-          enabled: true,
-          settings: existing.settings || "{}",
-          javascript: CUSTOM_PIXEL_JS,
-        },
-      };
-
-      const updRes = await fetch(`${base}/web_pixels/${existing.id}.json`, {
-        method: "PUT",
-        headers: {
-          "X-Shopify-Access-Token": accessToken,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updateBody),
-      });
-      const updJson = await updRes.json().catch(() => ({}));
-      if (!updRes.ok) {
-        return prettyErr(
-          `Update failed (${updRes.status})`,
-          updJson?.errors || updJson || "No details"
-        );
-      }
-      return res.json({ ok: true, pixel: updJson.web_pixel, mode: "updated" });
     }
 
-    return res.json({ ok: true, pixel: createJson.web_pixel, mode: "created" });
+    return res.json({ ok: true, pixel: updJson.web_pixel, mode: existing.name?.toLowerCase() === name.toLowerCase() ? "updated" : "updated-existing" });
   } catch (e) {
     return res.status(400).json({ error: String(e.message) });
   }
 });
+
 
 
 // ---------- Simple Embedded UI ----------
