@@ -1394,62 +1394,130 @@ app.post("/api/datalayer/enable", async (req, res) => {
   }
 });
 
-// 3) Enable custom Web Pixel (GraphQL)
+// 3) Enable custom Web Pixel (Checkout) — robust diagnostics
 app.post("/api/pixel/enable", async (req, res) => {
+  const prettyErr = (msg, detail) =>
+    res.status(400).json({ error: msg, detail });
+
   try {
     const { shop, accessToken, name = "AnalyticsContainer Pixel" } = req.body || {};
     assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
     assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
 
-    const listQ = "{ webPixels(first:50){ edges{ node{ id name } } } }";
-    const listR = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
-      method: "POST",
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: listQ }),
-    }).then((r) => r.json());
+    const base = `https://${shop}/admin/api/${API_VERSION}`;
 
-    const existing = (listR?.data?.webPixels?.edges || [])
-      .map((e) => e.node)
-      .find((n) => (n.name || "").toLowerCase() === name.toLowerCase());
+    // --- probe: does this store expose the web_pixels endpoint?
+    const probe = await fetch(`${base}/web_pixels.json?limit=1`, {
+      method: "GET",
+      headers: {
+        "X-Shopify-Access-Token": accessToken,
+        "Content-Type": "application/json",
+      },
+    });
 
-    const mutationCreate =
-      "mutation webPixelCreate($webPixel: WebPixelInput!) { webPixelCreate(webPixel: $webPixel) { userErrors { field message } webPixel { id name } } }";
-    const mutationUpdate =
-      "mutation webPixelUpdate($id: ID!, $webPixel: WebPixelInput!) { webPixelUpdate(id: $id, webPixel: $webPixel) { userErrors { field message } webPixel { id name } } }";
-
-    const input = {
-      name,
-      enabled: true,
-      settings: "{}",
-      javascript: CUSTOM_PIXEL_JS, // NOTE: 'javascript' field name
-    };
-
-    let mu, vars;
-    if (existing?.id) {
-      mu = mutationUpdate;
-      vars = { id: existing.id, webPixel: input };
-    } else {
-      mu = mutationCreate;
-      vars = { webPixel: input };
+    if (probe.status === 401 || probe.status === 403) {
+      const text = await probe.text().catch(() => "");
+      return prettyErr(
+        "Unauthorized: token is invalid or missing scopes.",
+        "Make sure this app’s Admin API token (shpat_…) includes at least read_pixels & write_pixels (and optionally read_custom_pixels & write_custom_pixels). Reinstall the app after changing scopes."
+      );
     }
 
-    const mq = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
-      method: "POST",
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: mu, variables: vars }),
-    }).then((r) => r.json());
+    if (probe.status === 404 || probe.status === 405) {
+      return prettyErr(
+        "This store/API version doesn’t expose Web Pixels REST.",
+        "Open Shopify Admin → Settings → Customer events → Add pixel → paste the code manually once. After it exists, this app can update it by name."
+      );
+    }
 
-    const errs =
-      mq?.data?.webPixelCreate?.userErrors || mq?.data?.webPixelUpdate?.userErrors || [];
-    if (errs.length) throw new Error(errs.map((e) => e.message).join("; "));
-    res.json({
-      ok: true,
-      pixel: mq.data.webPixelCreate?.webPixel || mq.data.webPixelUpdate?.webPixel,
+    if (!probe.ok) {
+      const text = await probe.text().catch(() => "");
+      return prettyErr(`Probe failed (${probe.status})`, text);
+    }
+
+    // --- try to create
+    const createBody = {
+      web_pixel: {
+        name,
+        enabled: true,
+        settings: "{}", // must be a JSON string
+        javascript: CUSTOM_PIXEL_JS,
+      },
+    };
+
+    const createRes = await fetch(`${base}/web_pixels.json`, {
+      method: "POST",
+      headers: {
+        "X-Shopify-Access-Token": accessToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(createBody),
     });
+
+    const createJson = await createRes.json().catch(() => ({}));
+
+    if (createRes.status === 401 || createRes.status === 403) {
+      return prettyErr(
+        "Unauthorized when creating pixel.",
+        "Token ok but scopes likely missing: grant write_pixels (and read_pixels). Reinstall app to apply scopes."
+      );
+    }
+
+    // If name already exists (422), list and update
+    if (!createRes.ok) {
+      const listRes = await fetch(`${base}/web_pixels.json`, {
+        method: "GET",
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+          "Content-Type": "application/json",
+        },
+      });
+      const listJson = await listRes.json().catch(() => ({}));
+      const existing = (listJson.web_pixels || []).find(
+        (p) => (p.name || "").toLowerCase() === name.toLowerCase()
+      );
+
+      if (!existing) {
+        return prettyErr(
+          `Create failed (${createRes.status})`,
+          createJson?.errors || createJson || "No details"
+        );
+      }
+
+      const updateBody = {
+        web_pixel: {
+          id: existing.id,
+          name,
+          enabled: true,
+          settings: existing.settings || "{}",
+          javascript: CUSTOM_PIXEL_JS,
+        },
+      };
+
+      const updRes = await fetch(`${base}/web_pixels/${existing.id}.json`, {
+        method: "PUT",
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateBody),
+      });
+      const updJson = await updRes.json().catch(() => ({}));
+      if (!updRes.ok) {
+        return prettyErr(
+          `Update failed (${updRes.status})`,
+          updJson?.errors || updJson || "No details"
+        );
+      }
+      return res.json({ ok: true, pixel: updJson.web_pixel, mode: "updated" });
+    }
+
+    return res.json({ ok: true, pixel: createJson.web_pixel, mode: "created" });
   } catch (e) {
-    res.status(400).json({ error: String(e.message) });
+    return res.status(400).json({ error: String(e.message) });
   }
 });
+
 
 // ---------- Simple Embedded UI ----------
 app.get("/admin/settings", (req, res) => {
