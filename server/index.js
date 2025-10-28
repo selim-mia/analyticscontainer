@@ -1461,7 +1461,6 @@ app.post("/api/pixel/enable", async (req, res) => {
   }
 });
 
-
 // ---------- Simple Embedded UI ----------
 app.get("/admin/settings", (req, res) => {
   const shop = req.query.shop || process.env.SHOP || "";
