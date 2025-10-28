@@ -1371,106 +1371,84 @@ app.post("/api/gtm/enable", async (req, res) => {
   }
 });
 
-// 2) Enable DataLayer (upload snippet + render right after GTM head, or before </head>)
-app.post("/api/datalayer/enable", async (req, res) => {
-  try {
-    const { shop, accessToken } = req.body || {};
-    assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
-    assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
-
-    const themeId = await getMainThemeId(shop, accessToken);
-    await putAsset(shop, accessToken, themeId, "snippets/ultimate-datalayer.liquid", UDL_SNIPPET_VALUE);
-
-    const themeKey = "layout/theme.liquid";
-    const asset = await getAsset(shop, accessToken, themeId, themeKey);
-    const orig = asset.value || Buffer.from(asset.attachment, "base64").toString("utf8");
-
-    const patched = insertRenderAfterGTM(orig);
-    if (patched !== orig) await putAsset(shop, accessToken, themeId, themeKey, patched);
-
-    res.json({ ok: true });
-  } catch (e) {
-    res.status(400).json({ error: String(e.message) });
-  }
-});
-
-// 3) Enable custom Web Pixel (Checkout) → upsert a **Custom Pixel**
+// 3) Enable custom Web Pixel (Checkout) — REST fallback, no listing
 app.post("/api/pixel/enable", async (req, res) => {
   try {
     const { shop, accessToken, name = "AnalyticsContainer Pixel" } = req.body || {};
     assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
     assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
 
-    // ---- GraphQL: list existing custom pixels
-    const listQ = `
-      query {
-        customPixels(first: 50) {
-          edges { node { id name enabled } }
-        }
+    // 1) Try to create via REST
+    const createBody = {
+      web_pixel: {
+        name,
+        enabled: true,
+        settings: "{}",          // keep as JSON string
+        javascript: CUSTOM_PIXEL_JS
       }
-    `;
-    const listR = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
-      method: "POST",
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: listQ })
-    }).then(r => r.json());
-
-    const existing = (listR?.data?.customPixels?.edges || [])
-      .map(e => e.node)
-      .find(n => (n.name || "").toLowerCase() === name.toLowerCase());
-
-    // ---- GraphQL: create / update custom pixel
-    const mutationCreate = `
-      mutation customPixelCreate($input: CustomPixelInput!) {
-        customPixelCreate(customPixel: $input) {
-          customPixel { id name enabled }
-          userErrors { field message }
-        }
-      }
-    `;
-    const mutationUpdate = `
-      mutation customPixelUpdate($id: ID!, $input: CustomPixelInput!) {
-        customPixelUpdate(id: $id, customPixel: $input) {
-          customPixel { id name enabled }
-          userErrors { field message }
-        }
-      }
-    `;
-
-    // Your module code (must be ESM: export default (analytics) => { ... })
-    const input = {
-      name,
-      enabled: true,
-      // Shopify expects module source in `source` with `inline` code for Custom Pixels
-      source: { inline: { code: CUSTOM_PIXEL_JS } },
-      settings: "{}"
     };
 
-    const mu = existing?.id ? mutationUpdate : mutationCreate;
-    const vars = existing?.id ? { id: existing.id, input } : { input };
-
-    const mq = await fetch(`https://${shop}/admin/api/2025-10/graphql.json`, {
+    const createRes = await fetch(`https://${shop}/admin/api/2025-10/web_pixels.json`, {
       method: "POST",
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: mu, variables: vars })
-    }).then(r => r.json());
+      headers: {
+        "X-Shopify-Access-Token": accessToken,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(createBody)
+    });
 
-    const errs =
-      mq?.data?.customPixelCreate?.userErrors ||
-      mq?.data?.customPixelUpdate?.userErrors ||
-      [];
+    const createJson = await createRes.json().catch(() => ({}));
 
-    if (errs.length) throw new Error(errs.map(e => e.message).join("; "));
+    // If already exists (name collision), Shopify may return 422 + error
+    // In that case, we can try to fetch list (REST) and update the first match.
+    if (!createRes.ok) {
+      // fetch list via REST
+      const listRes = await fetch(`https://${shop}/admin/api/2025-10/web_pixels.json`, {
+        method: "GET",
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+          "Content-Type": "application/json"
+        }
+      });
+      const listJson = await listRes.json().catch(() => ({}));
+      const existing = (listJson.web_pixels || []).find(p => (p.name || "").toLowerCase() === name.toLowerCase());
 
-    const pixel =
-      mq?.data?.customPixelCreate?.customPixel ||
-      mq?.data?.customPixelUpdate?.customPixel;
+      if (!existing) {
+        throw new Error(createJson?.errors ? JSON.stringify(createJson.errors) : `Create failed with ${createRes.status}`);
+      }
 
-    res.json({ ok: true, pixel });
+      // update existing
+      const updateBody = {
+        web_pixel: {
+          id: existing.id,
+          name,
+          enabled: true,
+          settings: existing.settings || "{}",
+          javascript: CUSTOM_PIXEL_JS
+        }
+      };
+
+      const updRes = await fetch(`https://${shop}/admin/api/2025-10/web_pixels/${existing.id}.json`, {
+        method: "PUT",
+        headers: {
+          "X-Shopify-Access-Token": accessToken,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(updateBody)
+      });
+      const updJson = await updRes.json().catch(() => ({}));
+      if (!updRes.ok) {
+        throw new Error(updJson?.errors ? JSON.stringify(updJson.errors) : `Update failed with ${updRes.status}`);
+      }
+      return res.json({ ok: true, pixel: updJson.web_pixel, mode: "updated" });
+    }
+
+    return res.json({ ok: true, pixel: createJson.web_pixel, mode: "created" });
   } catch (e) {
     res.status(400).json({ error: String(e.message) });
   }
 });
+
 
 
 
