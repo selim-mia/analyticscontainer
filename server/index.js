@@ -1,3 +1,4 @@
+// server/index.js
 import express from "express";
 import fetch from "node-fetch";
 import dotenv from "dotenv";
@@ -8,14 +9,20 @@ app.use(express.json());
 
 // Allow Shopify Admin iframe
 app.use((req, res, next) => {
-  res.setHeader("Content-Security-Policy", "frame-ancestors https://admin.shopify.com https://*.myshopify.com;");
+  res.setHeader(
+    "Content-Security-Policy",
+    "frame-ancestors https://admin.shopify.com https://*.myshopify.com;"
+  );
   next();
 });
 
 const PORT = process.env.PORT || 3000;
 const DEFAULT_GTM_ID = process.env.GTM_DEFAULT_ID || "GTM-XXXXXXXX";
 
-function assert(v, msg){ if(!v) throw new Error(msg); }
+// ---------- Utils ----------
+function assert(v, msg) {
+  if (!v) throw new Error(msg);
+}
 
 async function shopifyFetch(shop, accessToken, path, opts = {}) {
   const url = `https://${shop}/admin/api/2024-10${path}`;
@@ -24,31 +31,39 @@ async function shopifyFetch(shop, accessToken, path, opts = {}) {
     headers: {
       "X-Shopify-Access-Token": accessToken,
       "Content-Type": "application/json",
-      ...(opts.headers || {})
-    }
+      ...(opts.headers || {}),
+    },
   });
   if (!res.ok) throw new Error(`Shopify ${res.status} ${await res.text()}`);
   return res.json();
 }
+
 async function getMainThemeId(shop, token) {
-  const data = await shopifyFetch(shop, token, "/themes.json", { method:"GET" });
-  const main = data.themes.find(t => t.role === "main") || data.themes[0];
+  const data = await shopifyFetch(shop, token, "/themes.json", { method: "GET" });
+  const main = data.themes.find((t) => t.role === "main") || data.themes[0];
   if (!main) throw new Error("No theme found");
   return main.id;
 }
+
 async function getAsset(shop, token, themeId, key) {
   const q = encodeURIComponent(key);
-  const data = await shopifyFetch(shop, token, `/themes/${themeId}/assets.json?asset[key]=${q}&theme_id=${themeId}`, { method:"GET" });
+  const data = await shopifyFetch(
+    shop,
+    token,
+    `/themes/${themeId}/assets.json?asset[key]=${q}&theme_id=${themeId}`,
+    { method: "GET" }
+  );
   return data.asset;
 }
+
 async function putAsset(shop, token, themeId, key, value) {
   return shopifyFetch(shop, token, `/themes/${themeId}/assets.json`, {
-    method:"PUT",
-    body: JSON.stringify({ asset: { key, value } })
+    method: "PUT",
+    body: JSON.stringify({ asset: { key, value } }),
   });
 }
 
-// ===== Payloads from your uploads =====
+// ---------- Payloads (snippet + pixel) ----------
 const UDL_SNIPPET_VALUE = `<script>
 /**
   * Author: analytics-container
@@ -262,7 +277,7 @@ const UDL_SNIPPET_VALUE = `<script>
                 let cloneResponse = response.clone();
                 let requestURL = arguments[0]['url'] || arguments[0];
                 
-                if(typeof requestURL === 'string' && /.*\/search\/?.*\?.*q=.+/.test(requestURL) && !requestURL.includes('&requestFrom=uldt')) {   
+                if(typeof requestURL === 'string' && /.*\\/search\\/?\\.*/.test(requestURL) && requestURL.includes('q=') && !requestURL.includes('&requestFrom=uldt')) {   
                   const queryString = requestURL.split('?')[1];
                   const urlParams = new URLSearchParams(queryString);
                   const search_term = urlParams.get("q");
@@ -381,13 +396,13 @@ const UDL_SNIPPET_VALUE = `<script>
             xhr.send = function() {
     
                 // Only proceed if the request URL matches what we're looking for.
-                if (typeof requestURL === 'string' && (requestURL.includes("/cart/add") || requestURL.includes("/cart/change") || /.*\/search\/?.*\?.*q=.+/.test(requestURL))) {
+                if (typeof requestURL === 'string' && (requestURL.includes("/cart/add") || requestURL.includes("/cart/change") || /.*\\/search\\/?\\.*/.test(requestURL) && requestURL.includes('q='))) {
         
                     xhr.addEventListener('load', function() {
                         if (xhr.readyState === 4) {
                             if (xhr.status >= 200 && xhr.status < 400) { 
 
-                              if(typeof requestURL === 'string' && /.*\/search\/?.*\?.*q=.+/.test(requestURL) && !requestURL.includes('&requestFrom=uldt')) {
+                              if(typeof requestURL === 'string' && /.*\\/search\\/?\\.*/.test(requestURL) && requestURL.includes('q=') && !requestURL.includes('&requestFrom=uldt')) {
                                 const queryString = requestURL.split('?')[1];
                                 const urlParams = new URLSearchParams(queryString);
                                 const search_term = urlParams.get("q");
@@ -494,7 +509,7 @@ const UDL_SNIPPET_VALUE = `<script>
           const self = this;
           let pageUrl = window.location.href;
           
-          if(/.+\/search\?.*\&?q=.+/.test(pageUrl)) {   
+          if(/.+\\/search\\?.*\\&?q=.+/.test(pageUrl)) {   
             const queryString = pageUrl.split('?')[1];
             const urlParams = new URLSearchParams(queryString);
             const search_term = urlParams.get("q");
@@ -732,18 +747,18 @@ const UDL_SNIPPET_VALUE = `<script>
               let target = event.target;
               
               if(target.closest(self.addToWishListSelectors.addWishListIcon)) {
-                let pageULR = window.location.href.replace(/\?.+/, '');
+                let pageULR = window.location.href.replace(/\\?.+/, '');
                 let requestURL = undefined;
           
-                if(/\/products\/[^/]+$/.test(pageULR)) {
+                if(/\\/products\\/[^/]+$/.test(pageULR)) {
                   requestURL = pageULR;
                 } else if(self.addToWishListSelectors.gridItemSelector && self.addToWishListSelectors.productLinkSelector) {
                   let itemElement = target.closest(self.addToWishListSelectors.gridItemSelector);
                   if(itemElement) {
                     let linkElement = itemElement.querySelector(self.addToWishListSelectors.productLinkSelector); 
                     if(linkElement) {
-                      let link = linkElement.getAttribute('href').replace(/\?.+/g, '');
-                      if(link && /\/products\/[^/]+$/.test(link)) {
+                      let link = linkElement.getAttribute('href').replace(/\\?.+/g, '');
+                      if(link && /\\/products\\/[^/]+$/.test(link)) {
                         requestURL = link;
                       }
                     }
@@ -790,8 +805,8 @@ const UDL_SNIPPET_VALUE = `<script>
                 if(itemElement) {
                   let linkElement = itemElement.querySelector(self.quickViewSelector.productLinkSelector); 
                   if(linkElement) {
-                    let link = linkElement.getAttribute('href').replace(/\?.+/g, '');
-                    if(link && /\/products\/[^/]+$/.test(link)) {
+                    let link = linkElement.getAttribute('href').replace(/\\?.+/g, '');
+                    if(link && /\\/products\\/[^/]+$/.test(link)) {
                       requestURL = link;
                     }
                   }
@@ -1035,7 +1050,7 @@ const UDL_SNIPPET_VALUE = `<script>
                 var inputValue = input.value;
                 
                 if (inputName && inputValue) {
-                  var matches = inputName.match(/\[(.*?)\]/);
+                  var matches = inputName.match(/\\[(.*?)\\]/);
                   if (matches && matches.length > 1) {
                      var fieldName = matches[1];
                      formData[fieldName] = input.value;
@@ -1147,168 +1162,117 @@ const UDL_SNIPPET_VALUE = `<script>
     
   })();
 </script>
-`; // your ultimate-datalayer.liquid
-const CUSTOM_PIXEL_JS   = `export default (analytics) => {
+`;
+
+const CUSTOM_PIXEL_JS = `export default (analytics) => {
 const event_prefix = '';
 const formattedItemId = true;
 const gclidWithPageLocation = true;
 const GTM_container_url = 'https://www.googletagmanager.com';
 const GTM_container_id = 'GTM-00000000';
 
-
 let storeCountryCode = window.localStorage.getItem('shopCountryCode');
 storeCountryCode = storeCountryCode || 'US';
 window.dataLayer = window.dataLayer || [];
-function gtag() {
-    dataLayer.push(arguments);
+function gtag() { dataLayer.push(arguments); }
+
+// checkout pages event
+if(/.+\\/checkouts?\\/.*/.test(window.location.href)) {
+
+  // DataLayer Events
+  analytics.subscribe('payment_info_submitted', (event) => ecommerceDataLayer('add_payment_info', event));
+  analytics.subscribe('checkout_shipping_info_submitted', (event) => ecommerceDataLayer('add_shipping_info', event));
+  analytics.subscribe('checkout_completed', (event) => ecommerceDataLayer('purchase', event));
 }
-
-//checkout pages event
-if(/.+\/checkouts?\/.*/.test(window.location.href)) {
-    
-
-
-    // DataLayer Events
-    analytics.subscribe('payment_info_submitted', (event) => ecommerceDataLayer('add_payment_info', event));
-
-    analytics.subscribe('checkout_shipping_info_submitted', (event) => ecommerceDataLayer('add_shipping_info', event));
-
-    analytics.subscribe('checkout_completed', (event) => ecommerceDataLayer('purchase', event));
-
-}
-
 
 function eventLog(eventName, eventData) {
-    const css1 = 'background: red; color: #fff; font-size: normal; border-radius: 3px 0 0 3px; padding: 3px 4px;';
-    const css2 = 'background-color: blue; color: #fff; font-size: normal; border-radius: 0 3px 3px 0; padding: 3px 4px;';
-    
-    console.log(
-      '%cGTM DataLayer Event:%c' + event_prefix + eventName, css1, css2, eventData
-    );
+  const css1 = 'background: red; color: #fff; font-size: normal; border-radius: 3px 0 0 3px; padding: 3px 4px;';
+  const css2 = 'background-color: blue; color: #fff; font-size: normal; border-radius: 0 3px 3px 0; padding: 3px 4px;';
+  console.log('%cGTM DataLayer Event:%c' + event_prefix + eventName, css1, css2, eventData);
 }
 
 function getPageLocation(event) {
-    let pageLocation = event.context.document.location.href;
-  
-    if(gclidWithPageLocation) {
-      const name = '_gcl_aw';
-      const value = \`; \${document.cookie}\`;
-      const parts = value.split(\`; \${name}=\`);
-
-      if (parts.length === 2) {
-        const gclidCookie = parts.pop().split(';').shift();
-        const gclidParts = gclidCookie.split('.');
-        const gclid = gclidParts[gclidParts.length - 1];
-        
-        pageLocation = pageLocation.includes('?') ? \`\${pageLocation}&gclid=\${gclid}\` : \`\${pageLocation}?gclid=\${gclid}\`;
-      }
+  let pageLocation = event.context.document.location.href;
+  if (gclidWithPageLocation) {
+    const name = '_gcl_aw';
+    const value = '; ' + document.cookie;
+    const parts = value.split('; ' + name + '=');
+    if (parts.length === 2) {
+      const gclidCookie = parts.pop().split(';').shift();
+      const gclidParts = gclidCookie.split('.');
+      const gclid = gclidParts[gclidParts.length - 1];
+      pageLocation = pageLocation.includes('?') ? (pageLocation + '&gclid=' + gclid) : (pageLocation + '?gclid=' + gclid);
     }
+  }
   return pageLocation;
 }
 
 async function sha256Hash(value) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(value);
-
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashedValue = hashArray.map(byte => ('00' + byte.toString(16)).slice(-2)).join('');
-    return hashedValue;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(value);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(byte => ('00' + byte.toString(16)).slice(-2)).join('');
 }
 
 async function ecommerceDataLayer(gtm_event_name, event) {  
-    let hash_email;
-    let hash_phone;
-    const phone = event.data?.checkout?.phone;
-    const email = event.data?.checkout?.email;
+  let hash_email;
+  let hash_phone;
+  const phone = event.data?.checkout?.phone;
+  const email = event.data?.checkout?.email;
 
-    if (phone) {
-        hash_phone = await sha256Hash(phone);
+  if (phone) hash_phone = await sha256Hash(phone);
+  if (email) hash_email = await sha256Hash(email);
+
+  const customerInfo = {
+    customer: {
+      first_name: event.data?.checkout?.billingAddress?.firstName || event.data?.checkout?.shippingAddress?.firstName,
+      last_name: event.data?.checkout?.billingAddress?.lastName || event.data?.checkout?.shippingAddress?.lastName,
+      email: email,
+      hash_email: hash_email,
+      phone: phone,
+      hash_phone: hash_phone,
+      address: event.data?.checkout?.shippingAddress
     }
+  };
+  dataLayer.push(customerInfo);
 
-    if (email) {
-        hash_email = await sha256Hash(email);
+  const dataLayerInfo = {
+    event: event_prefix + gtm_event_name,
+    page_location: getPageLocation(event),
+    ecommerce: {
+      transaction_id: event.data?.checkout?.order?.id,
+      value: event.data?.checkout?.totalPrice?.amount,
+      tax: event.data?.checkout?.totalTax?.amount,
+      shipping: event.data?.checkout?.shippingLine?.price?.amount,
+      currency: event.data?.checkout?.currencyCode,
+      coupon: (event.data?.checkout?.discountApplications || []).map(discount => discount.title).join(','),
+      items: (event.data?.checkout?.lineItems || []).map(item => ({
+        item_id: formattedItemId ? ('shopify_' + (storeCountryCode) + '_' + (item.variant?.product?.id || '') + '_' + (item.variant?.id || '')) : item.variant?.product?.id,
+        product_id: item.variant?.product?.id,
+        variant_id: item.variant?.id,
+        sku: item.variant?.sku,
+        item_name: item.title,
+        coupon: item.discountAllocations?.discountApplication?.title,
+        discount: item.discountAllocations?.amount?.amount,
+        item_variant: item.variant?.title,
+        price: item.variant?.price?.amount,
+        quantity: item.quantity,
+        item_brand: item.variant?.product?.vendor,
+        item_category: item.variant?.product?.type
+      }))
     }
+  };
 
-
-    const customerInfo = {
-        customer: {
-            first_name: event.data?.checkout?.billingAddress?.firstName || event.data?.checkout?.shippingAddress?.firstName,
-            last_name: event.data?.checkout?.billingAddress?.lastName || event.data?.checkout?.shippingAddress?.lastName,
-            email: email,
-            hash_email: hash_email,
-            phone: phone,
-            hash_phone: hash_phone,
-            address: event.data?.checkout?.shippingAddress
-        }
-    }
-    dataLayer.push(customerInfo);
-
-    const dataLayerInfo = {
-        event: event_prefix + gtm_event_name,
-        page_location: getPageLocation(event),
-        ecommerce: {
-            transaction_id: event.data?.checkout?.order?.id,
-            value: event.data?.checkout?.totalPrice?.amount,
-            tax: event.data?.checkout?.totalTax?.amount,
-            shipping: event.data?.checkout?.shippingLine?.price?.amount,
-            currency: event.data?.checkout?.currencyCode,
-            coupon: (event.data?.checkout?.discountApplications || []).map(discount => discount.title).join(','),
-            items: (event.data?.checkout?.lineItems || []).map(item => ({
-                item_id: formattedItemId ? 'shopify_' + storeCountryCode + '_' + (item.variant?.product?.id || '') + '_' + (item.variant?.id || '') : item.variant?.product?.id,
-                product_id: item.variant?.product?.id,
-                variant_id: item.variant?.id,
-                sku: item.variant?.sku,
-                item_name: item.title,
-                coupon: item.discountAllocations?.discountApplication?.title,
-                discount: item.discountAllocations?.amount?.amount,
-                item_variant: item.variant?.title,
-                price: item.variant?.price?.amount,
-                quantity: item.quantity,
-                item_brand: item.variant?.product?.vendor,
-                item_category: item.variant?.product?.type
-
-            }))
-        }
-    }
-
-    dataLayer.push({
-        ecommerce: null
-    });
-    dataLayer.push(dataLayerInfo);
-    eventLog(gtm_event_name, Object.assign({}, dataLayerInfo, customerInfo));
+  dataLayer.push({ ecommerce: null });
+  dataLayer.push(dataLayerInfo);
+  eventLog(gtm_event_name, Object.assign({}, dataLayerInfo, customerInfo));
 }
-};`; // wrapped + GTM-less
+};`;
 
-// ===== Injectors =====
-function injectExactGTM(src, gtmId = DEFAULT_GTM_ID) {
-  const headTag = [
-    "<!-- Google Tag Manager -->",
-    "<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':",
-    "new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],",
-    "j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=",
-    "'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);",
-    `})(window,document,'script','dataLayer','${gtmId}');</script>`,
-    "<!-- End Google Tag Manager -->"
-  ].join("");
+// ---------- Injectors ----------
 
-  const bodyTag = [
-    "<!-- Google Tag Manager (noscript) -->",
-    `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${gtmId}"`,
-    `height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>`,
-    "<!-- End Google Tag Manager (noscript) -->"
-  ].join("");
-
-  if (!src.includes("googletagmanager.com/gtm.js")) {
-    src = src.replace(/<head(\b[^>]*)?>/i, (m) => `${m}\n${headTag}\n`);
-  }
-  if (!src.includes("googletagmanager.com/ns.html")) {
-    src = src.replace(/<body(\b[^>]*)?>/i, (m) => `${m}\n${bodyTag}\n`);
-  }
-  return src;
-}
-// Build GTM blocks with dynamic ID
+// Build GTM head/body blocks for a given ID
 function buildGTMBlocks(gtmId) {
   const headTag = [
     "<!-- Google Tag Manager -->",
@@ -1317,36 +1281,14 @@ function buildGTMBlocks(gtmId) {
     "j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=",
     "'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);",
     `})(window,document,'script','dataLayer','${gtmId}');</script>`,
-    "<!-- End Google Tag Manager -->"
+    "<!-- End Google Tag Manager -->",
   ].join("");
 
   const bodyTag = [
     "<!-- Google Tag Manager (noscript) -->",
     `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${gtmId}"`,
     `height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>`,
-    "<!-- End Google Tag Manager (noscript) -->"
-  ].join("");
-
-  return { headTag, bodyTag };
-}
-
-// Build GTM blocks with dynamic ID (ইতিমধ্যেই থাকলে রেখে দিন)
-function buildGTMBlocks(gtmId) {
-  const headTag = [
-    "<!-- Google Tag Manager -->",
-    "<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':",
-    "new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],",
-    "j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=",
-    "'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);",
-    `})(window,document,'script','dataLayer','${gtmId}');</script>`,
-    "<!-- End Google Tag Manager -->"
-  ].join("");
-
-  const bodyTag = [
-    "<!-- Google Tag Manager (noscript) -->",
-    `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${gtmId}"`,
-    `height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>`,
-    "<!-- End Google Tag Manager (noscript) -->"
+    "<!-- End Google Tag Manager (noscript) -->",
   ].join("");
 
   return { headTag, bodyTag };
@@ -1354,52 +1296,53 @@ function buildGTMBlocks(gtmId) {
 
 /**
  * Safe upsert:
- *  - আগের যেকোনো GTM head/body ব্লক সরিয়ে দিন
- *  - আগের যেকোনো `{% render 'ultimate-datalayer' %}` সরিয়ে দিন
- *  - নতুন GTM head/body ইনজেক্ট করুন
- *  - GTM head ব্লকের ঠিক পরের লাইনে একবার `{% render 'ultimate-datalayer' %}` বসান
+ *  - remove any previous GTM head/body blocks
+ *  - remove any previous `{% render 'ultimate-datalayer' %}`
+ *  - insert fresh GTM head/body
+ *  - immediately after GTM HEAD end marker, insert `{% render 'ultimate-datalayer' %}` (once)
  */
 function upsertGTMAndRender(src, gtmId) {
   const { headTag, bodyTag } = buildGTMBlocks(gtmId);
   const renderTag = `{% render 'ultimate-datalayer' %}`;
 
-  // 1) Remove any existing GTM blocks (head + body)
+  // Remove old GTM blocks
   const reHeadBlock = /<!--\s*Google Tag Manager\s*-->[\s\S]*?<!--\s*End Google Tag Manager\s*-->/i;
   const reBodyBlock = /<!--\s*Google Tag Manager\s*\(noscript\)\s*-->[\s\S]*?<!--\s*End Google Tag Manager\s*\(noscript\)\s*-->/i;
   src = src.replace(reHeadBlock, "").replace(reBodyBlock, "");
 
-  // 2) Remove any existing render of ultimate-datalayer
+  // Remove any existing snippet render
   src = src.replace(/\{\%\s*render\s+'ultimate-datalayer'\s*\%\}\s*/gi, "");
 
-  // 3) Insert fresh GTM blocks
+  // Insert fresh GTM
   src = src.replace(/<head(\b[^>]*)?>/i, (m) => `${m}\n${headTag}\n`);
   src = src.replace(/<body(\b[^>]*)?>/i, (m) => `${m}\n${bodyTag}\n`);
 
-  // 4) Put render tag immediately after the GTM HEAD end marker
-  src = src.replace(
-    /(<!--\s*End Google Tag Manager\s*-->)/i,
-    `$1\n  ${renderTag}`
-  );
+  // Put render right after GTM Head
+  src = src.replace(/(<!--\s*End Google Tag Manager\s*-->)/i, `$1\n  ${renderTag}`);
 
-  // Fallback: if for some reason not inserted, put before </head>
+  // Fallback if not inserted
   if (!/render\s+'ultimate-datalayer'/.test(src)) {
     src = src.replace(/<\/head>/i, `  ${renderTag}\n</head>`);
   }
-
   return src;
 }
 
+// Only add `{% render 'ultimate-datalayer' %}` after GTM head end (or before </head>)
+function insertRenderAfterGTM(src) {
+  const renderTag = `{% render 'ultimate-datalayer' %}`;
 
-// Render snippet once in <head>
-function injectSnippetRenderHeadOnly(src) {
-  const renderHead = `{% render 'ultimate-datalayer' %}`;
-  if (!src.includes("render 'ultimate-datalayer'")) {
-    src = src.replace(/<\/head>/i, `  ${renderHead}\n</head>`);
-  }
-  return src;
+  // Remove any duplicates
+  src = src.replace(/\{\%\s*render\s+'ultimate-datalayer'\s*\%\}\s*/gi, "");
+
+  // After GTM head end marker
+  const withAfter = src.replace(/(<!--\s*End Google Tag Manager\s*-->)/i, `$1\n  ${renderTag}`);
+  if (withAfter !== src) return withAfter;
+
+  // Fallback before </head>
+  return src.replace(/<\/head>/i, `  ${renderTag}\n</head>`);
 }
 
-// ===== Endpoints =====
+// ---------- API Endpoints ----------
 
 // 1) Enable GTM → dynamic ID + render right after head GTM (once)
 app.post("/api/gtm/enable", async (req, res) => {
@@ -1428,8 +1371,7 @@ app.post("/api/gtm/enable", async (req, res) => {
   }
 });
 
-
-// 2) Enable DataLayer (snippet + render after GTM in <head>)
+// 2) Enable DataLayer (upload snippet + render right after GTM head, or before </head>)
 app.post("/api/datalayer/enable", async (req, res) => {
   try {
     const { shop, accessToken } = req.body || {};
@@ -1437,16 +1379,13 @@ app.post("/api/datalayer/enable", async (req, res) => {
     assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
 
     const themeId = await getMainThemeId(shop, accessToken);
-
-    // upload snippet
     await putAsset(shop, accessToken, themeId, "snippets/ultimate-datalayer.liquid", UDL_SNIPPET_VALUE);
 
-    // fetch theme.liquid and insert render right after GTM
     const themeKey = "layout/theme.liquid";
     const asset = await getAsset(shop, accessToken, themeId, themeKey);
     const orig = asset.value || Buffer.from(asset.attachment, "base64").toString("utf8");
 
-    const patched = insertRenderAfterGTM(orig); // <<— use this
+    const patched = insertRenderAfterGTM(orig);
     if (patched !== orig) await putAsset(shop, accessToken, themeId, themeKey, patched);
 
     res.json({ ok: true });
@@ -1454,7 +1393,6 @@ app.post("/api/datalayer/enable", async (req, res) => {
     res.status(400).json({ error: String(e.message) });
   }
 });
-
 
 // 3) Enable custom Web Pixel (GraphQL)
 app.post("/api/pixel/enable", async (req, res) => {
@@ -1465,23 +1403,25 @@ app.post("/api/pixel/enable", async (req, res) => {
 
     const listQ = "{ webPixels(first:50){ edges{ node{ id name } } } }";
     const listR = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
-      method:"POST",
-      headers:{ "X-Shopify-Access-Token":accessToken, "Content-Type":"application/json" },
-      body: JSON.stringify({ query: listQ })
-    }).then(r=>r.json());
+      method: "POST",
+      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: listQ }),
+    }).then((r) => r.json());
 
     const existing = (listR?.data?.webPixels?.edges || [])
-      .map(e=>e.node)
-      .find(n => (n.name||"").toLowerCase() === name.toLowerCase());
+      .map((e) => e.node)
+      .find((n) => (n.name || "").toLowerCase() === name.toLowerCase());
 
-    const mutationCreate = "mutation webPixelCreate($webPixel: WebPixelInput!) { webPixelCreate(webPixel: $webPixel) { userErrors { field message } webPixel { id name } } }";
-    const mutationUpdate = "mutation webPixelUpdate($id: ID!, $webPixel: WebPixelInput!) { webPixelUpdate(id: $id, webPixel: $webPixel) { userErrors { field message } webPixel { id name } } }";
+    const mutationCreate =
+      "mutation webPixelCreate($webPixel: WebPixelInput!) { webPixelCreate(webPixel: $webPixel) { userErrors { field message } webPixel { id name } } }";
+    const mutationUpdate =
+      "mutation webPixelUpdate($id: ID!, $webPixel: WebPixelInput!) { webPixelUpdate(id: $id, webPixel: $webPixel) { userErrors { field message } webPixel { id name } } }";
 
     const input = {
       name,
       enabled: true,
       settings: "{}",
-      javascript: CUSTOM_PIXEL_JS   // lowercase
+      javascript: CUSTOM_PIXEL_JS, // NOTE: 'javascript' field name
     };
 
     let mu, vars;
@@ -1495,19 +1435,23 @@ app.post("/api/pixel/enable", async (req, res) => {
 
     const mq = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
       method: "POST",
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type":"application/json" },
-      body: JSON.stringify({ query: mu, variables: vars })
-    }).then(r=>r.json());
+      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
+      body: JSON.stringify({ query: mu, variables: vars }),
+    }).then((r) => r.json());
 
-    const errs = mq?.data?.webPixelCreate?.userErrors || mq?.data?.webPixelUpdate?.userErrors || [];
-    if (errs.length) throw new Error(errs.map(e=>e.message).join("; "));
-    res.json({ ok:true, pixel: (mq.data.webPixelCreate?.webPixel || mq.data.webPixelUpdate?.webPixel) });
+    const errs =
+      mq?.data?.webPixelCreate?.userErrors || mq?.data?.webPixelUpdate?.userErrors || [];
+    if (errs.length) throw new Error(errs.map((e) => e.message).join("; "));
+    res.json({
+      ok: true,
+      pixel: mq.data.webPixelCreate?.webPixel || mq.data.webPixelUpdate?.webPixel,
+    });
   } catch (e) {
     res.status(400).json({ error: String(e.message) });
   }
 });
 
-// ===== Simple UI =====
+// ---------- Simple Embedded UI ----------
 app.get("/admin/settings", (req, res) => {
   const shop = req.query.shop || process.env.SHOP || "";
   res.type("html").send(`<!doctype html>
@@ -1522,7 +1466,6 @@ app.get("/admin/settings", (req, res) => {
   input[type=text]{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
   .btn{appearance:none;border:0;background:#111827;color:#fff;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
-  .btn.secondary{background:#374151}
   .muted{color:#6b7280;font-size:12px}
   .toast{padding:10px 12px;border-radius:8px;margin-top:10px;display:none}
   .ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}
@@ -1562,7 +1505,7 @@ app.get("/admin/settings", (req, res) => {
 
   <div class="card">
     <h2 class="section-title">2) Enable DataLayer</h2>
-    <p class="muted">Creates <code>snippets/ultimate-datalayer.liquid</code> and renders it in &lt;head&gt;.</p>
+    <p class="muted">Creates <code>snippets/ultimate-datalayer.liquid</code> and renders it in &lt;head&gt; (immediately after GTM head end if present).</p>
     <div style="display:flex;gap:12px;margin-top:14px">
       <button class="btn" id="btn-dl">Enable DataLayer</button>
     </div>
@@ -1629,6 +1572,7 @@ document.getElementById('btn-pixel').addEventListener('click', async () => {
 </html>`);
 });
 
+// Small root
 app.get("/", (_req, res) => {
   res.type("html").send(`<!doctype html><meta charset="utf-8"><title>analyticscontainer</title>
   <h1>AnalyticsContainer</h1><p><a href="/admin/settings">Open Settings UI</a></p>`);
