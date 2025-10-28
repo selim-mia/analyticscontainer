@@ -1330,39 +1330,65 @@ function buildGTMBlocks(gtmId) {
   return { headTag, bodyTag };
 }
 
-// Insert/Update GTM and immediately after add `{% render 'ultimate-datalayer' %}` once
-function insertOrUpdateGTMAndRender(src, gtmId) {
-  const renderTag = `{% render 'ultimate-datalayer' %}`;
+// Build GTM blocks with dynamic ID (ইতিমধ্যেই থাকলে রেখে দিন)
+function buildGTMBlocks(gtmId) {
+  const headTag = [
+    "<!-- Google Tag Manager -->",
+    "<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':",
+    "new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],",
+    "j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=",
+    "'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);",
+    `})(window,document,'script','dataLayer','${gtmId}');</script>`,
+    "<!-- End Google Tag Manager -->"
+  ].join("");
+
+  const bodyTag = [
+    "<!-- Google Tag Manager (noscript) -->",
+    `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${gtmId}"`,
+    `height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>`,
+    "<!-- End Google Tag Manager (noscript) -->"
+  ].join("");
+
+  return { headTag, bodyTag };
+}
+
+/**
+ * Safe upsert:
+ *  - আগের যেকোনো GTM head/body ব্লক সরিয়ে দিন
+ *  - আগের যেকোনো `{% render 'ultimate-datalayer' %}` সরিয়ে দিন
+ *  - নতুন GTM head/body ইনজেক্ট করুন
+ *  - GTM head ব্লকের ঠিক পরের লাইনে একবার `{% render 'ultimate-datalayer' %}` বসান
+ */
+function upsertGTMAndRender(src, gtmId) {
   const { headTag, bodyTag } = buildGTMBlocks(gtmId);
+  const renderTag = `{% render 'ultimate-datalayer' %}`;
 
-  // update existing GTM IDs if already present
-  src = src
-    .replace(/(\('dataLayer',')GTM-[A-Z0-9_-]+'\);<\/script>)/i, (_, p1) => `${p1}${gtmId}');</script>`)
-    .replace(/(googletagmanager\.com\/gtm\.js\?id=)GTM-[A-Z0-9_-]+/i, `$1${gtmId}`)
-    .replace(/(googletagmanager\.com\/ns\.html\?id=)GTM-[A-Z0-9_-]+/i, `$1${gtmId}`);
+  // 1) Remove any existing GTM blocks (head + body)
+  const reHeadBlock = /<!--\s*Google Tag Manager\s*-->[\s\S]*?<!--\s*End Google Tag Manager\s*-->/i;
+  const reBodyBlock = /<!--\s*Google Tag Manager\s*\(noscript\)\s*-->[\s\S]*?<!--\s*End Google Tag Manager\s*\(noscript\)\s*-->/i;
+  src = src.replace(reHeadBlock, "").replace(reBodyBlock, "");
 
-  const hasGTMHead = /googletagmanager\.com\/gtm\.js/i.test(src);
-  const hasGTMBody = /googletagmanager\.com\/ns\.html/i.test(src);
+  // 2) Remove any existing render of ultimate-datalayer
+  src = src.replace(/\{\%\s*render\s+'ultimate-datalayer'\s*\%\}\s*/gi, "");
 
-  if (!hasGTMHead) {
-    src = src.replace(/<head(\b[^>]*)?>/i, (m) => `${m}\n${headTag}\n`);
+  // 3) Insert fresh GTM blocks
+  src = src.replace(/<head(\b[^>]*)?>/i, (m) => `${m}\n${headTag}\n`);
+  src = src.replace(/<body(\b[^>]*)?>/i, (m) => `${m}\n${bodyTag}\n`);
+
+  // 4) Put render tag immediately after the GTM HEAD end marker
+  src = src.replace(
+    /(<!--\s*End Google Tag Manager\s*-->)/i,
+    `$1\n  ${renderTag}`
+  );
+
+  // Fallback: if for some reason not inserted, put before </head>
+  if (!/render\s+'ultimate-datalayer'/.test(src)) {
+    src = src.replace(/<\/head>/i, `  ${renderTag}\n</head>`);
   }
-  if (!hasGTMBody) {
-    src = src.replace(/<body(\b[^>]*)?>/i, (m) => `${m}\n${bodyTag}\n`);
-  }
 
-  // render tag exactly once, right after the GTM head block
-  if (!src.includes("render 'ultimate-datalayer'")) {
-    src = src.replace(
-      /(<!--\s*End Google Tag Manager\s*-->)/i,
-      `$1\n  ${renderTag}`
-    );
-    if (!src.includes(renderTag)) {
-      src = src.replace(/<\/head>/i, `  ${renderTag}\n</head>`);
-    }
-  }
   return src;
 }
+
 
 // Render snippet once in <head>
 function injectSnippetRenderHeadOnly(src) {
@@ -1375,24 +1401,23 @@ function injectSnippetRenderHeadOnly(src) {
 
 // ===== Endpoints =====
 
-// 1) Enable GTM
-// 1) Enable GTM → dynamic ID + render right after head GTM
+// 1) Enable GTM → dynamic ID + render right after head GTM (once)
 app.post("/api/gtm/enable", async (req, res) => {
   try {
     const { shop, accessToken, gtmId } = req.body || {};
     assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
     assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
 
-    const themeId = await getMainThemeId(shop, accessToken);
-    const themeKey = "layout/theme.liquid";
-    const asset = await getAsset(shop, accessToken, themeId, themeKey);
-    const orig = asset.value || Buffer.from(asset.attachment, "base64").toString("utf8");
-
     const desiredId = (gtmId || DEFAULT_GTM_ID || "").trim();
     assert(/^GTM-[A-Z0-9_-]+$/i.test(desiredId), "Invalid GTM Container ID");
 
-    const patched = insertOrUpdateGTMAndRender(orig, desiredId);
+    const themeId = await getMainThemeId(shop, accessToken);
+    const themeKey = "layout/theme.liquid";
 
+    const asset = await getAsset(shop, accessToken, themeId, themeKey);
+    const orig = asset.value || Buffer.from(asset.attachment, "base64").toString("utf8");
+
+    const patched = upsertGTMAndRender(orig, desiredId);
     if (patched !== orig) {
       await putAsset(shop, accessToken, themeId, themeKey, patched);
     }
