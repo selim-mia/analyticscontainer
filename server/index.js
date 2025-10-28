@@ -1308,6 +1308,61 @@ function injectExactGTM(src, gtmId = DEFAULT_GTM_ID) {
   }
   return src;
 }
+// Build GTM blocks with dynamic ID
+function buildGTMBlocks(gtmId) {
+  const headTag = [
+    "<!-- Google Tag Manager -->",
+    "<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':",
+    "new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],",
+    "j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=",
+    "'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);",
+    `})(window,document,'script','dataLayer','${gtmId}');</script>`,
+    "<!-- End Google Tag Manager -->"
+  ].join("");
+
+  const bodyTag = [
+    "<!-- Google Tag Manager (noscript) -->",
+    `<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${gtmId}"`,
+    `height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>`,
+    "<!-- End Google Tag Manager (noscript) -->"
+  ].join("");
+
+  return { headTag, bodyTag };
+}
+
+// Insert/Update GTM and immediately after add `{% render 'ultimate-datalayer' %}` once
+function insertOrUpdateGTMAndRender(src, gtmId) {
+  const renderTag = `{% render 'ultimate-datalayer' %}`;
+  const { headTag, bodyTag } = buildGTMBlocks(gtmId);
+
+  // update existing GTM IDs if already present
+  src = src
+    .replace(/(\('dataLayer',')GTM-[A-Z0-9_-]+'\);<\/script>)/i, (_, p1) => `${p1}${gtmId}');</script>`)
+    .replace(/(googletagmanager\.com\/gtm\.js\?id=)GTM-[A-Z0-9_-]+/i, `$1${gtmId}`)
+    .replace(/(googletagmanager\.com\/ns\.html\?id=)GTM-[A-Z0-9_-]+/i, `$1${gtmId}`);
+
+  const hasGTMHead = /googletagmanager\.com\/gtm\.js/i.test(src);
+  const hasGTMBody = /googletagmanager\.com\/ns\.html/i.test(src);
+
+  if (!hasGTMHead) {
+    src = src.replace(/<head(\b[^>]*)?>/i, (m) => `${m}\n${headTag}\n`);
+  }
+  if (!hasGTMBody) {
+    src = src.replace(/<body(\b[^>]*)?>/i, (m) => `${m}\n${bodyTag}\n`);
+  }
+
+  // render tag exactly once, right after the GTM head block
+  if (!src.includes("render 'ultimate-datalayer'")) {
+    src = src.replace(
+      /(<!--\s*End Google Tag Manager\s*-->)/i,
+      `$1\n  ${renderTag}`
+    );
+    if (!src.includes(renderTag)) {
+      src = src.replace(/<\/head>/i, `  ${renderTag}\n</head>`);
+    }
+  }
+  return src;
+}
 
 // Render snippet once in <head>
 function injectSnippetRenderHeadOnly(src) {
@@ -1321,6 +1376,7 @@ function injectSnippetRenderHeadOnly(src) {
 // ===== Endpoints =====
 
 // 1) Enable GTM
+// 1) Enable GTM → dynamic ID + render right after head GTM
 app.post("/api/gtm/enable", async (req, res) => {
   try {
     const { shop, accessToken, gtmId } = req.body || {};
@@ -1331,13 +1387,22 @@ app.post("/api/gtm/enable", async (req, res) => {
     const themeKey = "layout/theme.liquid";
     const asset = await getAsset(shop, accessToken, themeId, themeKey);
     const orig = asset.value || Buffer.from(asset.attachment, "base64").toString("utf8");
-    const patched = injectExactGTM(orig, gtmId || DEFAULT_GTM_ID);
-    if (patched !== orig) await putAsset(shop, accessToken, themeId, themeKey, patched);
-    res.json({ ok:true });
+
+    const desiredId = (gtmId || DEFAULT_GTM_ID || "").trim();
+    assert(/^GTM-[A-Z0-9_-]+$/i.test(desiredId), "Invalid GTM Container ID");
+
+    const patched = insertOrUpdateGTMAndRender(orig, desiredId);
+
+    if (patched !== orig) {
+      await putAsset(shop, accessToken, themeId, themeKey, patched);
+    }
+
+    res.json({ ok: true, gtmId: desiredId });
   } catch (e) {
     res.status(400).json({ error: String(e.message) });
   }
 });
+
 
 // 2) Enable DataLayer (snippet + render after GTM in <head>)
 app.post("/api/datalayer/enable", async (req, res) => {
