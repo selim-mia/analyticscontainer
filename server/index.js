@@ -1394,34 +1394,57 @@ app.post("/api/datalayer/enable", async (req, res) => {
   }
 });
 
-// 3) Enable custom Web Pixel (GraphQL)
+// 3) Enable custom Web Pixel (Checkout) → install/update a customer web pixel
 app.post("/api/pixel/enable", async (req, res) => {
   try {
     const { shop, accessToken, name = "AnalyticsContainer Pixel" } = req.body || {};
     assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
     assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
 
-    const listQ = "{ webPixels(first:50){ edges{ node{ id name } } } }";
+    // 1) list pixels
+    const listQ = `
+      query {
+        webPixels(first: 50) {
+          edges { node { id name } }
+        }
+      }`;
     const listR = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
-      method: "POST",
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: listQ }),
-    }).then((r) => r.json());
+      method:"POST",
+      headers:{ "X-Shopify-Access-Token":accessToken, "Content-Type":"application/json" },
+      body: JSON.stringify({ query: listQ })
+    }).then(r=>r.json());
+
+    // Top-level GraphQL errors guard
+    if (listR?.errors?.length) {
+      const msg = listR.errors.map(e => e.message).join("; ");
+      throw new Error(`GraphQL(list) error: ${msg}`);
+    }
 
     const existing = (listR?.data?.webPixels?.edges || [])
-      .map((e) => e.node)
-      .find((n) => (n.name || "").toLowerCase() === name.toLowerCase());
+      .map(e=>e.node)
+      .find(n => (n.name||"").toLowerCase() === name.toLowerCase());
 
-    const mutationCreate =
-      "mutation webPixelCreate($webPixel: WebPixelInput!) { webPixelCreate(webPixel: $webPixel) { userErrors { field message } webPixel { id name } } }";
-    const mutationUpdate =
-      "mutation webPixelUpdate($id: ID!, $webPixel: WebPixelInput!) { webPixelUpdate(id: $id, webPixel: $webPixel) { userErrors { field message } webPixel { id name } } }";
+    // mutations (note: field is "javascript" — all lowercase)
+    const mutationCreate = `
+      mutation webPixelCreate($webPixel: WebPixelInput!) {
+        webPixelCreate(webPixel: $webPixel) {
+          userErrors { field message }
+          webPixel { id name }
+        }
+      }`;
+    const mutationUpdate = `
+      mutation webPixelUpdate($id: ID!, $webPixel: WebPixelInput!) {
+        webPixelUpdate(id: $id, webPixel: $webPixel) {
+          userErrors { field message }
+          webPixel { id name }
+        }
+      }`;
 
     const input = {
       name,
       enabled: true,
-      settings: "{}",
-      javascript: CUSTOM_PIXEL_JS, // NOTE: 'javascript' field name
+      settings: "{}",          // JSON as string
+      javascript: CUSTOM_PIXEL_JS   // <-- LOWERCASE "javascript"
     };
 
     let mu, vars;
@@ -1435,21 +1458,35 @@ app.post("/api/pixel/enable", async (req, res) => {
 
     const mq = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
       method: "POST",
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-      body: JSON.stringify({ query: mu, variables: vars }),
-    }).then((r) => r.json());
+      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type":"application/json" },
+      body: JSON.stringify({ query: mu, variables: vars })
+    }).then(r=>r.json());
 
-    const errs =
-      mq?.data?.webPixelCreate?.userErrors || mq?.data?.webPixelUpdate?.userErrors || [];
-    if (errs.length) throw new Error(errs.map((e) => e.message).join("; "));
-    res.json({
-      ok: true,
-      pixel: mq.data.webPixelCreate?.webPixel || mq.data.webPixelUpdate?.webPixel,
-    });
+    // Top-level errors
+    if (mq?.errors?.length) {
+      const msg = mq.errors.map(e => e.message).join("; ");
+      throw new Error(`GraphQL(mutation) error: ${msg}`);
+    }
+
+    const createRes = mq?.data?.webPixelCreate;
+    const updateRes = mq?.data?.webPixelUpdate;
+    const userErrors = (createRes?.userErrors || updateRes?.userErrors || []);
+    if (userErrors.length) {
+      throw new Error(`userErrors: ` + userErrors.map(u => u.message).join("; "));
+    }
+
+    const pixel = createRes?.webPixel || updateRes?.webPixel;
+    if (!pixel?.id) {
+      // Nothing came back even without errors—rare, but guard anyway
+      throw new Error("Pixel mutation returned no pixel id.");
+    }
+
+    res.json({ ok:true, pixel });
   } catch (e) {
     res.status(400).json({ error: String(e.message) });
   }
 });
+
 
 // ---------- Simple Embedded UI ----------
 app.get("/admin/settings", (req, res) => {
