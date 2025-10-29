@@ -1,4 +1,4 @@
-# analyticscontainer (Shopify) — GTM injector + datalayer snippet
+# analyticsgtm (Shopify) — GTM injector + datalayer snippet
 
 This minimal Node/Express project does two things after your app is installed on a store:
 
@@ -29,7 +29,7 @@ The server will:
 
 ### Endpoints
 
-- `POST /api/settings/gtm` – saves metafield `analyticscontainer.gtm_id`
+- `POST /api/settings/gtm` – saves metafield `analyticsgtm.gtm_id`
 - `POST /api/activate` – creates snippet + injects render tags
 - `POST /webhooks/app_uninstalled` – webhook placeholder (HMAC verify not included in this minimal sample)
 
