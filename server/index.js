@@ -67,8 +67,8 @@ async function putAsset(shop, token, themeId, key, value) {
 // ---------- Payloads (snippet + pixel) ----------
 const UDL_SNIPPET_VALUE = `<script>
 /**
-  * Author: analytics-container
-  * Email: analytics-container@gmail.com 
+  * Author: analyticsgtm
+  * Email: analyticsgtm@gmail.com 
   * Last Update: 27 September 2025
   */
   
