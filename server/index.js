@@ -1532,12 +1532,13 @@ app.get("/admin/settings", (req, res) => {
   .field{
     position:relative;
   }
-  
+  // -----
   h1, h2, h3, .title {color: var(--text) !important;}
  .card h2{color: var(--text) !important;}
  label{color: var(--text);}
 .btn{color:#0b1220;}
 .btn.secondary{color: var(--text);}
+// -------
   .field input{
     width:100%; padding:12px 12px 12px 40px; font-size:14px; color:var(--text);
     background:#0b1428; border:1px solid var(--border); border-radius:12px; outline:none;
