@@ -1478,120 +1478,263 @@ app.use(express.static(path.join(process.cwd(), "public")));
 app.get("/admin/settings", (req, res) => {
   const shop = req.query.shop || process.env.SHOP || "";
   res.type("html").send(`<!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>analyticsgtm • Settings</title>
 <style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;background:#f8fafc;margin:0}
-  .wrap{max-width:860px;margin:40px auto;padding:0 16px}
-  .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 1px 12px rgba(0,0,0,.04);padding:22px;margin-bottom:16px}
-  h1{margin:0 0 12px 0}
-  label{display:block;margin-bottom:6px;font-weight:600}
-  input[type=text]{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
-  .btn{appearance:none;border:0;background:#111827;color:#fff;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
-  .muted{color:#6b7280;font-size:12px}
-  .toast{padding:10px 12px;border-radius:8px;margin-top:10px;display:none}
-  .ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}
-  .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
-  .section-title{font-size:18px;margin:0 0 8px 0}
+  :root{
+    --bg:#0b1220;
+    --panel:#0f1629;
+    --panel-2:#121a30;
+    --text:#e7eefc;
+    --muted:#9fb2d1;
+    --brand:#6ea8ff;
+    --brand-2:#7c5cff;
+    --accent:#22c55e;
+    --danger:#ef4444;
+    --border:rgba(255,255,255,.08);
+    --ring:rgba(110,168,255,.35);
+    --shadow:0 8px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+    color:var(--text); background: radial-gradient(1200px 600px at 20% -20%, #1b2a55 0, transparent 60%), var(--bg);
+  }
+  .topbar{
+    background: linear-gradient(90deg, rgba(110,168,255,.25), rgba(124,92,255,.25));
+    border-bottom:1px solid var(--border);
+    backdrop-filter: blur(6px);
+  }
+  .topbar-inner{max-width:980px;margin:0 auto;padding:18px 16px;display:flex;align-items:center;gap:12px}
+  .logo{
+    width:36px;height:36px;border-radius:10px;
+    background: linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.15);
+  }
+  .title{font-weight:800;letter-spacing:.3px;font-size:20px}
+  .wrap{max-width:980px;margin:28px auto;padding:0 16px}
+  .grid{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:840px){.grid{grid-template-columns:1fr 1fr}}
+  .card{
+    background:linear-gradient(180deg, var(--panel), var(--panel-2));
+    border:1px solid var(--border);
+    border-radius:16px; box-shadow:var(--shadow);
+    padding:22px;
+  }
+  .card h2{margin:0 0 8px 0;font-size:18px}
+  .muted{color:var(--muted);font-size:12px}
+  label{display:block;margin:12px 0 6px;font-weight:600}
+  .field{
+    position:relative;
+  }
+  .field input{
+    width:100%; padding:12px 12px 12px 40px; font-size:14px; color:var(--text);
+    background:#0b1428; border:1px solid var(--border); border-radius:12px; outline:none;
+    transition:border .2s, box-shadow .2s, transform .05s;
+  }
+  .field input:focus{border-color:var(--brand); box-shadow:0 0 0 4px var(--ring)}
+  .icon{
+    position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:.65; pointer-events:none;
+    font-size:14px
+  }
+  .btn{
+    appearance:none; border:0; cursor:pointer; font-weight:700; letter-spacing:.2px;
+    padding:12px 14px; border-radius:12px; color:#0b1220;
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow: 0 8px 16px rgba(110,168,255,.28);
+    transition: transform .08s ease, filter .2s ease, box-shadow .2s ease;
+  }
+  .btn:hover{filter:brightness(1.05)}
+  .btn:active{transform:translateY(1px)}
+  .btn.secondary{
+    background:transparent; color:var(--text); border:1px solid var(--border);
+    box-shadow:none;
+  }
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .toast{
+    margin-top:12px; display:none; padding:12px 14px; border-radius:12px; font-weight:600; font-size:13px;
+    border:1px solid; background:rgba(0,0,0,.25)
+  }
+  .ok{border-color:rgba(34,197,94,.35); color:#86efac; background:rgba(34,197,94,.08)}
+  .err{border-color:rgba(239,68,68,.35); color:#fecaca; background:rgba(239,68,68,.08)}
+  .section{margin-top:20px}
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+  .pill{
+    font-size:11px; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.06);
+    border:1px solid var(--border); color:var(--muted)
+  }
+  .two-col{display:grid;grid-template-columns:1fr;gap:12px}
+  @media(min-width:700px){.two-col{grid-template-columns:1fr 1fr}}
+  .footnote{margin-top:6px;font-size:12px;color:var(--muted)}
 </style>
-<div class="wrap">
-  <div class="card">
-    <h1>analyticsgtm – Settings</h1>
-    <div class="row">
-      <div>
-        <label>Shop domain (myshopify.com)</label>
-        <input id="shop" type="text" placeholder="your-store.myshopify.com" value="${shop}">
-      </div>
-      <div>
-        <label>Admin API Access Token <span class="muted">(shpat_… dev test)</span></label>
-        <input id="tok" type="text" placeholder="shpat_xxx">
-      </div>
+</head>
+<body>
+
+  <div class="topbar">
+    <div class="topbar-inner">
+      <div class="logo" aria-hidden="true"></div>
+      <div class="title">analyticsgtm — Settings</div>
+      <span class="pill">v1.0</span>
     </div>
   </div>
 
-  <div class="card">
-    <h2 class="section-title">1) Enable GTM</h2>
-    <p class="muted">Adds GTM script in &lt;head&gt; and GTM noscript in &lt;body&gt; start. Default: <code>${DEFAULT_GTM_ID}</code></p>
-    <div class="row">
-      <div>
+  <div class="wrap">
+    <div class="card">
+      <div class="header">
+        <h2>Store connection</h2>
+        <span class="pill">Required</span>
+      </div>
+      <div class="two-col">
+        <div>
+          <label>Shop domain (myshopify.com)</label>
+          <div class="field">
+            <span class="icon">🏬</span>
+            <input id="shop" type="text" placeholder="your-store.myshopify.com" value="${shop}">
+          </div>
+          <div class="footnote">উদাহরণ: <code>analyticscontainer-store.myshopify.com</code> (admin URL নয়)</div>
+        </div>
+        <div>
+          <label>Admin API Access Token <span class="muted">(shpat_… dev test)</span></label>
+          <div class="field">
+            <span class="icon">🔑</span>
+            <input id="tok" type="text" placeholder="shpat_xxx">
+          </div>
+          <div class="footnote">Themes: <code>read_themes, write_themes</code> • Pixels (optional): <code>read_pixels, write_pixels</code></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="header">
+          <h2>1) Enable GTM</h2>
+          <span class="pill">Head + Body</span>
+        </div>
+        <p class="muted">Adds GTM to <code>&lt;head&gt;</code> and noscript to <code>&lt;body&gt;</code>. Default: <code>${process.env.GTM_DEFAULT_ID || "GTM-XXXXXXXX"}</code></p>
         <label>GTM Container ID</label>
-        <input id="gtm" type="text" placeholder="GTM-XXXXXXX">
+        <div class="field">
+          <span class="icon">🏷️</span>
+          <input id="gtm" type="text" placeholder="GTM-XXXXXXX">
+        </div>
+        <div class="row">
+          <button class="btn" id="btn-gtm">Enable GTM</button>
+          <button class="btn secondary" id="btn-preview-gtm">Tag Assistant</button>
+        </div>
+        <div id="ok-gtm" class="toast ok">GTM injected.</div>
+        <div id="err-gtm" class="toast err">Failed.</div>
+      </div>
+
+      <div class="card">
+        <div class="header">
+          <h2>2) Enable DataLayer</h2>
+          <span class="pill">Snippet</span>
+        </div>
+        <p class="muted">Creates <code>snippets/ultimate-datalayer.liquid</code> and renders it right after GTM head end (or before <code>&lt;/head&gt;</code>).</p>
+        <div class="row">
+          <button class="btn" id="btn-dl">Enable DataLayer</button>
+        </div>
+        <div id="ok-dl" class="toast ok">DataLayer snippet injected.</div>
+        <div id="err-dl" class="toast err">Failed.</div>
       </div>
     </div>
-    <div style="display:flex;gap:12px;margin-top:14px">
-      <button class="btn" id="btn-gtm">Enable GTM</button>
-    </div>
-    <div id="ok-gtm" class="toast ok">GTM injected.</div>
-    <div id="err-gtm" class="toast err">Failed.</div>
-  </div>
 
-  <div class="card">
-    <h2 class="section-title">2) Enable DataLayer</h2>
-    <p class="muted">Creates <code>snippets/ultimate-datalayer.liquid</code> and renders it in &lt;head&gt; (immediately after GTM head end if present).</p>
-    <div style="display:flex;gap:12px;margin-top:14px">
-      <button class="btn" id="btn-dl">Enable DataLayer</button>
-    </div>
-    <div id="ok-dl" class="toast ok">DataLayer snippet injected.</div>
-    <div id="err-dl" class="toast err">Failed.</div>
-  </div>
-
-  <div class="card">
-    <h2 class="section-title">3) Enable custom Web Pixel (Checkout)</h2>
-    <p class="muted">Installs/updates a customer web pixel with your checkout code.</p>
-    <div class="row">
-      <div>
-        <label>Pixel name</label>
-        <input id="pxname" type="text" value="analyticsgtm Pixel">
+    <div class="card section">
+      <div class="header">
+        <h2>3) Enable custom Web Pixel (Checkout)</h2>
+        <span class="pill">Customer events</span>
       </div>
+      <div class="two-col">
+        <div>
+          <label>Pixel name</label>
+          <div class="field">
+            <span class="icon">📈</span>
+            <input id="pxname" type="text" value="analyticsgtm Pixel">
+          </div>
+        </div>
+        <div>
+          <label class="muted">Tip</label>
+          <div class="footnote">If REST not available, create once from <em>Settings → Customer events → Add custom pixel</em>, then click Enable again.</div>
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn" id="btn-pixel">Enable custom Web Pixel</button>
+      </div>
+      <div id="ok-px" class="toast ok">Pixel installed/updated.</div>
+      <div id="err-px" class="toast err">Failed.</div>
     </div>
-    <div style="display:flex;gap:12px;margin-top:14px">
-      <button class="btn" id="btn-pixel">Enable custom Web Pixel</button>
-    </div>
-    <div id="ok-px" class="toast ok">Pixel installed/updated.</div>
-    <div id="err-px" class="toast err">Failed.</div>
   </div>
-</div>
 
 <script>
-function toast(id, ok, msg) {
-  const el = document.getElementById(id);
-  el.innerText = msg || (ok ? 'Done' : 'Failed');
-  el.style.display='block';
-  setTimeout(()=>el.style.display='none', 3500);
-}
-function val(id) { return document.getElementById(id).value.trim(); }
+  function toast(id, ok, msg) {
+    const el = document.getElementById(id);
+    el.innerText = msg || (ok ? 'Done' : 'Failed');
+    el.style.display='block';
+    setTimeout(()=>el.style.display='none', 3500);
+  }
+  function val(id){ return document.getElementById(id).value.trim(); }
 
-document.getElementById('btn-gtm').addEventListener('click', async () => {
-  const payload = { shop: val('shop'), accessToken: val('tok'), gtmId: val('gtm') };
-  try {
-    const r = await fetch('/api/gtm/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    const j = await r.json().catch(()=>({}));
-    if(!r.ok || j.error) throw new Error(j.error || 'error');
-    toast('ok-gtm', true, 'GTM injected.');
-  } catch(e) { toast('err-gtm', false, 'Error: ' + e.message); }
-});
+  function setLoading(btn, loading=true){
+    if(!btn) return;
+    if(loading){
+      btn.dataset.text = btn.textContent;
+      btn.textContent = 'Working…';
+      btn.disabled = true;
+      btn.style.opacity = .7;
+      btn.style.cursor = 'not-allowed';
+    }else{
+      btn.textContent = btn.dataset.text || btn.textContent;
+      btn.disabled = false;
+      btn.style.opacity = 1;
+      btn.style.cursor = 'pointer';
+    }
+  }
 
-document.getElementById('btn-dl').addEventListener('click', async () => {
-  const payload = { shop: val('shop'), accessToken: val('tok') };
-  try {
-    const r = await fetch('/api/datalayer/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    const j = await r.json().catch(()=>({}));
-    if(!r.ok || j.error) throw new Error(j.error || 'error');
-    toast('ok-dl', true, 'DataLayer snippet injected.');
-  } catch(e) { toast('err-dl', false, 'Error: ' + e.message); }
-});
+  document.getElementById('btn-gtm').addEventListener('click', async (e) => {
+    const btn=e.currentTarget; setLoading(btn,true);
+    const payload = { shop: val('shop'), accessToken: val('tok'), gtmId: val('gtm') };
+    try{
+      const r = await fetch('/api/gtm/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok || j.error) throw new Error(j.error || 'error');
+      toast('ok-gtm', true, 'GTM injected.');
+    }catch(e){ toast('err-gtm', false, 'Error: '+e.message); }
+    finally{ setLoading(btn,false); }
+  });
 
-document.getElementById('btn-pixel').addEventListener('click', async () => {
-  const payload = { shop: val('shop'), accessToken: val('tok'), name: val('pxname') };
-  try {
-    const r = await fetch('/api/pixel/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    const j = await r.json().catch(()=>({}));
-    if(!r.ok || j.error) throw new Error(j.error || 'error');
-    toast('ok-px', true, 'Pixel installed/updated.');
-  } catch(e) { toast('err-px', false, 'Error: ' + e.message); }
-});
+  document.getElementById('btn-preview-gtm').addEventListener('click', () => {
+    const id = val('gtm') || '${process.env.GTM_DEFAULT_ID || ""}';
+    if(!/^GTM-[A-Z0-9_-]+$/i.test(id)){ alert('Enter a valid GTM Container ID'); return; }
+    window.open('https://tagassistant.google.com/?utm_source=analyticsgtm#/?mode=PREVIEW&url='+encodeURIComponent(location.origin)+'&id='+encodeURIComponent(id), '_blank');
+  });
+
+  document.getElementById('btn-dl').addEventListener('click', async (e) => {
+    const btn=e.currentTarget; setLoading(btn,true);
+    const payload = { shop: val('shop'), accessToken: val('tok') };
+    try{
+      const r = await fetch('/api/datalayer/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok || j.error) throw new Error(j.error || 'error');
+      toast('ok-dl', true, 'DataLayer snippet injected.');
+    }catch(e){ toast('err-dl', false, 'Error: '+e.message); }
+    finally{ setLoading(btn,false); }
+  });
+
+  document.getElementById('btn-pixel').addEventListener('click', async (e) => {
+    const btn=e.currentTarget; setLoading(btn,true);
+    const payload = { shop: val('shop'), accessToken: val('tok'), name: val('pxname') };
+    try{
+      const r = await fetch('/api/pixel/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      const j = await r.json().catch(()=>({}));
+      if(!r.ok || j.error) throw new Error(j.error || 'error');
+      toast('ok-px', true, 'Pixel installed/updated.');
+    }catch(e){ toast('err-px', false, 'Error: '+e.message); }
+    finally{ setLoading(btn,false); }
+  });
 </script>
+</body>
 </html>`);
 });
 
