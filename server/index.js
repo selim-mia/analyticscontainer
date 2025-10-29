@@ -1401,7 +1401,7 @@ app.post("/api/datalayer/enable", async (req, res) => {
 app.post("/api/pixel/enable", async (req, res) => {
   const fail = (msg, detail) => res.status(400).json({ error: msg, detail });
   try {
-    const { shop, accessToken, name = "AnalyticsContainer Pixel" } = req.body || {};
+    const { shop, accessToken, name = "analyticsgtm Pixel" } = req.body || {};
     if (!shop || !shop.endsWith(".myshopify.com")) throw new Error("Missing/invalid shop");
     if (!accessToken || !accessToken.startsWith("shpat_")) throw new Error("Missing/invalid shpat token");
 
@@ -1479,7 +1479,7 @@ app.get("/admin/settings", (req, res) => {
   const shop = req.query.shop || process.env.SHOP || "";
   res.type("html").send(`<!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AnalyticsContainer • Settings</title>
+<title>analyticsgtm • Settings</title>
 <style>
   body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;background:#f8fafc;margin:0}
   .wrap{max-width:860px;margin:40px auto;padding:0 16px}
@@ -1497,7 +1497,7 @@ app.get("/admin/settings", (req, res) => {
 </style>
 <div class="wrap">
   <div class="card">
-    <h1>AnalyticsContainer – Settings</h1>
+    <h1>analyticsgtm – Settings</h1>
     <div class="row">
       <div>
         <label>Shop domain (myshopify.com)</label>
@@ -1542,7 +1542,7 @@ app.get("/admin/settings", (req, res) => {
     <div class="row">
       <div>
         <label>Pixel name</label>
-        <input id="pxname" type="text" value="AnalyticsContainer Pixel">
+        <input id="pxname" type="text" value="analyticsgtm Pixel">
       </div>
     </div>
     <div style="display:flex;gap:12px;margin-top:14px">
@@ -1597,9 +1597,9 @@ document.getElementById('btn-pixel').addEventListener('click', async () => {
 
 // Small root
 app.get("/", (_req, res) => {
-  res.type("html").send(`<!doctype html><meta charset="utf-8"><title>analyticscontainer</title>
-  <h1>AnalyticsContainer</h1><p><a href="/admin/settings">Open Settings UI</a></p>`);
+  res.type("html").send(`<!doctype html><meta charset="utf-8"><title>analyticsgtm</title>
+  <h1>analyticsgtm</h1><p><a href="/admin/settings">Open Settings UI</a></p>`);
 });
 
-app.listen(PORT, () => console.log(`analyticscontainer running on :${PORT}`));
+app.listen(PORT, () => console.log(`analyticsgtm running on :${PORT}`));
 
