@@ -1483,6 +1483,8 @@ app.get("/admin/settings", (req, res) => {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>analyticsgtm • Settings</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg:#0b1220;
@@ -1500,7 +1502,7 @@ app.get("/admin/settings", (req, res) => {
   }
   *{box-sizing:border-box}
   body{
-    margin:0; font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu;
+    margin:0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
     color:var(--text); background: radial-gradient(1200px 600px at 20% -20%, #1b2a55 0, transparent 60%), var(--bg);
   }
   .topbar{
@@ -1530,6 +1532,7 @@ app.get("/admin/settings", (req, res) => {
   .field{
     position:relative;
   }
+  h1, h2, h3, .title {color: var(--text) !important;}
   .field input{
     width:100%; padding:12px 12px 12px 40px; font-size:14px; color:var(--text);
     background:#0b1428; border:1px solid var(--border); border-radius:12px; outline:none;
