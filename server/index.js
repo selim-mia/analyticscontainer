@@ -1396,24 +1396,22 @@ app.post("/api/datalayer/enable", async (req, res) => {
 });
 
 // =======================
-// /api/pixel/enable  — GraphQL-first (create -> fallback to list/update)
 app.post("/api/pixel/enable", async (req, res) => {
   const fail = (msg, detail) => res.status(400).json({ error: msg, detail });
   try {
-    const { shop, accessToken, name = "analyticsgtm Pixel" } = req.body || {};
+    const { shop, accessToken } = req.body || {};
     if (!shop?.endsWith(".myshopify.com")) throw new Error("Missing/invalid shop");
     if (!accessToken?.startsWith("shpat_")) throw new Error("Missing/invalid shpat token");
 
     const APIv = "2024-10";
-    const REST = `https://${shop}/admin/api/${APIv}`;
-    const headers = { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" };
-
+    const GQL = `https://${shop}/admin/api/${APIv}/graphql.json`;
+    const headers = {
+      "X-Shopify-Access-Token": accessToken,
+      "Content-Type": "application/json",
+      "Accept": "application/json"
+    };
     const gql = async (query, variables) => {
-      const r = await fetch(`${REST}/graphql.json`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ query, variables }),
-      });
+      const r = await fetch(GQL, { method: "POST", headers, body: JSON.stringify({ query, variables }) });
       const j = await r.json();
       if (!r.ok || j.errors) throw new Error(JSON.stringify(j.errors || j));
       return j.data;
@@ -1421,55 +1419,52 @@ app.post("/api/pixel/enable", async (req, res) => {
 
     const pixelJs = CUSTOM_PIXEL_JS;
 
-    // 1) Try CREATE first (no listing)
+    // ----- CREATE (schema expects "webPixel", not "input")
     const CREATE = `
-      mutation($input: WebPixelInput!) {
-        webPixelCreate(input: $input) {
-          webPixel { id name enabled }
+      mutation Create($webPixel: WebPixelCreateInput!) {
+        webPixelCreate(webPixel: $webPixel) {
+          webPixel { id }
           userErrors { field message }
         }
-      }
-    `;
-    const create = await gql(CREATE, { input: { name, enabled: true, settings: "{}", javascript: pixelJs } });
-    const ce = create.webPixelCreate.userErrors || [];
+      }`;
+    const createVars = { webPixel: { enabled: true, settings: "{}", javascript: pixelJs } };
+    const c = await gql(CREATE, createVars);
+    const ce = c.webPixelCreate.userErrors || [];
 
-    if (!ce.length && create.webPixelCreate.webPixel) {
-      return res.json({ ok: true, mode: "created", pixel: create.webPixelCreate.webPixel });
+    if (!ce.length && c.webPixelCreate.webPixel?.id) {
+      return res.json({ ok: true, mode: "created", pixel: c.webPixelCreate.webPixel });
     }
 
-    // If name exists or validation message — list & update
-    const LIST = `query { webPixels(first: 50) { nodes { id name enabled } } }`;
+    // ----- LIST (no name field in this schema; just grab first)
+    const LIST = `query { webPixels(first: 50) { nodes { id } } }`;
     let list;
     try {
       list = await gql(LIST, {});
     } catch (e) {
-      // Still no list access -> show the actual GraphQL error to user
       return fail("GraphQL list not accessible (check read_custom_pixels)", String(e.message));
     }
+    const existing = list.webPixels?.nodes?.[0];
+    if (!existing?.id) return fail("GraphQL create failed", ce);
 
-    const existing = (list.webPixels?.nodes || []).find(p => (p.name || "").toLowerCase() === name.toLowerCase());
-    if (!existing) {
-      // Could not find by name -> bubble the original create error for clarity
-      return fail("GraphQL create failed", ce);
-    }
-
+    // ----- UPDATE
     const UPDATE = `
-      mutation($id: ID!, $input: WebPixelUpdateInput!) {
-        webPixelUpdate(id: $id, input: $input) {
-          webPixel { id name enabled }
+      mutation Upd($id: ID!, $webPixel: WebPixelUpdateInput!) {
+        webPixelUpdate(id: $id, webPixel: $webPixel) {
+          webPixel { id }
           userErrors { field message }
         }
-      }
-    `;
-    const upd = await gql(UPDATE, { id: existing.id, input: { name, enabled: true, settings: "{}", javascript: pixelJs } });
-    const ue = upd.webPixelUpdate.userErrors || [];
+      }`;
+    const updVars = { id: existing.id, webPixel: { enabled: true, settings: "{}", javascript: pixelJs } };
+    const u = await gql(UPDATE, updVars);
+    const ue = u.webPixelUpdate.userErrors || [];
     if (ue.length) return fail("GraphQL update failed", ue);
 
-    return res.json({ ok: true, mode: "updated", pixel: upd.webPixelUpdate.webPixel });
+    return res.json({ ok: true, mode: "updated", pixel: u.webPixelUpdate.webPixel });
   } catch (e) {
     res.status(400).json({ error: String(e.message) });
   }
 });
+
 
 
 
