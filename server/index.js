@@ -1535,13 +1535,18 @@ app.get("/admin/settings", (req, res) => {
   // -----
   h1, h2, h3, .title {color: var(--text) !important;}
  .card h2{color: var(--text) !important;}
- .btn{color:#0b1220;}
- .btn.secondary{color: var(--text);}
+ label{color: var(--text);}
+.btn{color:#0b1220;}
+.btn.secondary{color: var(--text);}
 // -------
   .field input{
     width:100%; padding:12px 12px 12px 40px; font-size:14px; color:var(--text);
     background:#0b1428; border:1px solid var(--border); border-radius:12px; outline:none;
     transition:border .2s, box-shadow .2s, transform .05s;
+  }
+  input{
+    padding: 10px;
+    border-radius: 10px;
   }
   .field input:focus{border-color:var(--brand); box-shadow:0 0 0 4px var(--ring)}
   .icon{
@@ -1599,15 +1604,13 @@ app.get("/admin/settings", (req, res) => {
         <div>
           <label>Shop domain (myshopify.com)</label>
           <div class="field">
-            <span class="icon">🏬</span>
             <input id="shop" type="text" placeholder="your-store.myshopify.com" value="${shop}">
           </div>
-          <div class="footnote">উদাহরণ: <code>analyticscontainer-store.myshopify.com</code> (admin URL নয়)</div>
+          <div class="footnote">Example: <code>analyticscontainer-store.myshopify.com</code> (Not admin URL)</div>
         </div>
         <div>
           <label>Admin API Access Token <span class="muted">(shpat_… dev test)</span></label>
           <div class="field">
-            <span class="icon">🔑</span>
             <input id="tok" type="text" placeholder="shpat_xxx">
           </div>
           <div class="footnote">Themes: <code>read_themes, write_themes</code> • Pixels (optional): <code>read_pixels, write_pixels</code></div>
@@ -1624,7 +1627,6 @@ app.get("/admin/settings", (req, res) => {
         <p class="muted">Adds GTM to <code>&lt;head&gt;</code> and noscript to <code>&lt;body&gt;</code>. Default: <code>${process.env.GTM_DEFAULT_ID || "GTM-XXXXXXXX"}</code></p>
         <label>GTM Container ID</label>
         <div class="field">
-          <span class="icon">🏷️</span>
           <input id="gtm" type="text" placeholder="GTM-XXXXXXX">
         </div>
         <div class="row">
@@ -1658,7 +1660,6 @@ app.get("/admin/settings", (req, res) => {
         <div>
           <label>Pixel name</label>
           <div class="field">
-            <span class="icon">📈</span>
             <input id="pxname" type="text" value="analyticsgtm Pixel">
           </div>
         </div>
