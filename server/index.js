@@ -26,7 +26,7 @@ function assert(v, msg) {
 }
 
 async function shopifyFetch(shop, accessToken, path, opts = {}) {
-  const url = `https://${shop}/admin/api/2025-10${path}`;
+  const url = `https://${shop}/admin/api/2024-10${path}`;
   const res = await fetch(url, {
     ...opts,
     headers: {
