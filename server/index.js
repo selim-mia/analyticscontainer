@@ -1396,8 +1396,7 @@ app.post("/api/datalayer/enable", async (req, res) => {
 });
 
 // =======================
-// /api/pixel/enable  { shop, accessToken, name? }
-// Uses GraphQL first (recommended), falls back to REST if available.
+// GraphQL-only Custom Web Pixel enable/update
 app.post("/api/pixel/enable", async (req, res) => {
   const fail = (msg, detail) => res.status(400).json({ error: msg, detail });
   try {
@@ -1405,120 +1404,80 @@ app.post("/api/pixel/enable", async (req, res) => {
     if (!shop || !shop.endsWith(".myshopify.com")) throw new Error("Missing/invalid shop");
     if (!accessToken || !accessToken.startsWith("shpat_")) throw new Error("Missing/invalid shpat token");
 
-    const APIv = "2024-10"; // use a widely supported stable version
-    const REST = `https://${shop}/admin/api/${APIv}`;
+    const APIv = "2024-10";
+    const GQL = `https://${shop}/admin/api/${APIv}/graphql.json`;
     const headers = {
       "X-Shopify-Access-Token": accessToken,
       "Content-Type": "application/json",
       "Accept": "application/json"
     };
 
-    // 1) Try GraphQL create/update first
-    const pixelJs = CUSTOM_PIXEL_JS; // keep your existing JS string
     const gql = async (query, variables) => {
-      const resp = await fetch(`${REST}/graphql.json`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ query, variables })
-      });
-      const json = await resp.json();
-      if (!resp.ok || json.errors) throw new Error(JSON.stringify(json.errors || json));
-      return json.data;
+      const r = await fetch(GQL, { method: "POST", headers, body: JSON.stringify({ query, variables }) });
+      const text = await r.text();
+      let j; try { j = JSON.parse(text); } catch { throw new Error(`GQL non-JSON: ${text}`); }
+      if (!r.ok || j.errors) throw new Error(`GQL ${r.status}: ${JSON.stringify(j.errors || j)}`);
+      return j.data;
     };
 
-    // Find existing pixels (GraphQL)
-    const LIST_QUERY = `
+    // 1) List existing pixels (connection uses edges->node in some versions)
+    const LIST = `
       query {
         webPixels(first: 50) {
-          nodes { id name enabled }
+          edges { node { id name enabled } }
         }
       }
     `;
-    let data;
+    let list;
     try {
-      data = await gql(LIST_QUERY, {});
+      list = await gql(LIST, {});
     } catch (e) {
-      data = null; // GraphQL might not be enabled in some very old sandboxes
+      // এখানে স্পষ্ট error ফেরত দিন—REST fallback নয়
+      return fail("GraphQL list failed (likely scope or feature issue).", String(e.message));
     }
 
-    if (data && data.webPixels) {
-      const existing = (data.webPixels.nodes || []).find(p => (p.name || "").toLowerCase() === name.toLowerCase());
+    const nodes = (list?.webPixels?.edges || []).map(e => e.node);
+    const existing = nodes.find(p => (p.name || "").toLowerCase() === name.toLowerCase());
 
-      if (!existing) {
-        // create
-        const CREATE_MUT = `
-          mutation($input: WebPixelInput!) {
-            webPixelCreate(input: $input) {
-              webPixel { id name enabled }
-              userErrors { field message }
-            }
-          }
-        `;
-        const createRes = await gql(CREATE_MUT, {
-          input: { name, enabled: true, settings: "{}", javascript: pixelJs }
-        });
-        const errs = createRes.webPixelCreate.userErrors;
-        if (errs?.length) return fail("GraphQL create failed", errs);
-        return res.json({ ok: true, mode: "created", pixel: createRes.webPixelCreate.webPixel });
-      } else {
-        // update
-        const UPDATE_MUT = `
-          mutation($id: ID!, $input: WebPixelUpdateInput!) {
-            webPixelUpdate(id: $id, input: $input) {
-              webPixel { id name enabled }
-              userErrors { field message }
-            }
-          }
-        `;
-        const updRes = await gql(UPDATE_MUT, {
-          id: existing.id,
-          input: { name, enabled: true, settings: "{}", javascript: pixelJs }
-        });
-        const errs = updRes.webPixelUpdate.userErrors;
-        if (errs?.length) return fail("GraphQL update failed", errs);
-        return res.json({ ok: true, mode: "updated", pixel: updRes.webPixelUpdate.webPixel });
-      }
-    }
-
-    // 2) Fallback to REST (older guides/stores)
-    const probe = await fetch(`${REST}/web_pixels.json?limit=1`, { method: "GET", headers });
-    if (probe.status === 404 || probe.status === 405) {
-      return fail(
-        "Custom Web Pixel endpoints not available on this store.",
-        "Open Admin → Settings → Customer events and ensure ‘Custom pixel’ is supported. If the theme uses checkout.liquid, checkout events won’t fire. Also make sure scopes read_pixels, write_pixels are granted and reinstalled."
-      );
-    }
-    if (probe.status === 401 || probe.status === 403) {
-      return fail("Unauthorized: token invalid or missing scopes.", "Grant read_pixels, write_pixels and reinstall.");
-    }
-
-    // Create via REST
-    const createBody = { web_pixel: { name, enabled: true, settings: "{}", javascript: pixelJs } };
-    const cRes = await fetch(`${REST}/web_pixels.json`, { method: "POST", headers, body: JSON.stringify(createBody) });
-    const cJson = await cRes.json().catch(() => ({}));
-    if (cRes.ok) return res.json({ ok: true, mode: "created", pixel: cJson.web_pixel });
-
-    // Update first/matching via REST
-    const lRes = await fetch(`${REST}/web_pixels.json`, { method: "GET", headers });
-    const lJson = await lRes.json().catch(() => ({}));
-    const existing =
-      (lJson.web_pixels || []).find(p => (p.name || "").toLowerCase() === name.toLowerCase()) ||
-      (lJson.web_pixels || [])[0];
+    const pixelJs = CUSTOM_PIXEL_JS;
 
     if (!existing) {
-      return fail(`Create failed (${cRes.status})`, cJson?.errors || cJson || "No pixel to update.");
+      // 2) Create
+      const CREATE = `
+        mutation($input: WebPixelInput!) {
+          webPixelCreate(input: $input) {
+            webPixel { id name enabled }
+            userErrors { field message }
+          }
+        }
+      `;
+      const out = await gql(CREATE, { input: { name, enabled: true, settings: "{}", javascript: pixelJs } });
+      const errs = out?.webPixelCreate?.userErrors;
+      if (errs && errs.length) return fail("Create failed (userErrors).", errs);
+      return res.json({ ok: true, mode: "created", pixel: out.webPixelCreate.webPixel });
+    } else {
+      // 3) Update
+      const UPDATE = `
+        mutation($id: ID!, $input: WebPixelUpdateInput!) {
+          webPixelUpdate(id: $id, input: $input) {
+            webPixel { id name enabled }
+            userErrors { field message }
+          }
+        }
+      `;
+      const out = await gql(UPDATE, {
+        id: existing.id,
+        input: { name, enabled: true, settings: "{}", javascript: pixelJs }
+      });
+      const errs = out?.webPixelUpdate?.userErrors;
+      if (errs && errs.length) return fail("Update failed (userErrors).", errs);
+      return res.json({ ok: true, mode: "updated", pixel: out.webPixelUpdate.webPixel });
     }
-
-    const updBody = { web_pixel: { id: existing.id, name: name, enabled: true, settings: "{}", javascript: pixelJs } };
-    const uRes = await fetch(`${REST}/web_pixels/${existing.id}.json`, { method: "PUT", headers, body: JSON.stringify(updBody) });
-    const uJson = await uRes.json().catch(() => ({}));
-    if (!uRes.ok) return fail(`Update failed (${uRes.status})`, uJson?.errors || uJson || "No details");
-
-    res.json({ ok: true, mode: "updated", pixel: uJson.web_pixel });
   } catch (e) {
-    res.status(400).json({ error: String(e.message) });
+    return res.status(400).json({ error: String(e.message) });
   }
 });
+
 
 // সার্ভার-লেভেলে (শুধু pixel.js এর জন্য) CORS/MIME ঠিক করা ভালো
 app.get("/pixel.js", (req, res) => {
