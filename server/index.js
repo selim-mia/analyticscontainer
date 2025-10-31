@@ -1538,7 +1538,7 @@ app.get("/admin/settings", (req, res) => {
 
     <!-- 3A) Manual install — copy from pixel.js -->
   <div class="card">
-    <h2 class="section-title">Manual install — Custom Pixel (Customer events)</h2>
+    <h2 class="section-title">3)Manual install — Custom Pixel (Customer events)</h2>
     <p class="muted">If REST/GraphQL blocked, install manually from your Admin.</p>
     <ol style="margin:0 0 12px 18px; line-height:1.6">
       <li>Go to <b>Settings → Customer events</b></li>
@@ -1595,6 +1595,56 @@ document.getElementById('btn-pixel').addEventListener('click', async () => {
     if(!r.ok || j.error) throw new Error(j.error || 'error');
     toast('ok-px', true, 'Pixel installed/updated.');
   } catch(e) { toast('err-px', false, 'Error: ' + e.message); }
+});
+// === Copy from /pixel.js → clipboard (with fallback) ===
+document.getElementById('btn-copy-pixel').addEventListener('click', async function () {
+  try {
+    const r = await fetch('/pixel.js', { cache: 'no-store' });
+    if (!r.ok) throw new Error('Unable to load /pixel.js');
+    const code = await r.text();
+
+    // Try modern Clipboard API first (requires secure context)
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(code);
+    } else {
+      // Fallback: temporary textarea select+copy
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      if (!ok) throw new Error('Copy not permitted');
+    }
+
+    toast('ok-copy', true, 'Custom pixel code copied!');
+  } catch (e) {
+    toast('err-copy', false, 'Copy failed: ' + e.message);
+  }
+});
+
+// === Open Admin → Settings → Customer events for this shop ===
+document.getElementById('btn-open-cust-events').addEventListener('click', function () {
+  var raw = (document.getElementById('shop') ? document.getElementById('shop').value : '').trim();
+  if (!raw) { alert('Enter your shop domain first (e.g., your-store.myshopify.com)'); return; }
+
+  // Clean + validate domain
+  var shop = raw.replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  if (!/^[a-z0-9-]+\.myshopify\.com$/i.test(shop)) {
+    alert('Please enter a valid myshopify.com domain, e.g. your-store.myshopify.com');
+    return;
+  }
+
+  // Classic admin URL on the shop domain
+  var url = 'https://' + shop + '/admin/settings/customer_events';
+  // (Alt new-style admin if you ever want)
+  // var handle = shop.split('.')[0];
+  // var url = 'https://admin.shopify.com/store/' + handle + '/settings/customer_events';
+
+  window.open(url, '_blank', 'noopener');
 });
 
 </script>
