@@ -1771,6 +1771,41 @@ app.get("/admin/settings", (req, res) => {
       <div id="ok-px" class="toast ok">Pixel installed/updated.</div>
       <div id="err-px" class="toast err">Failed.</div>
     </div>
+        <!-- Manual fallback: Custom Pixel -->
+    <div class="card section" id="manual-pixel" style="display:none">
+      <div class="header">
+        <h2>Manual install — Custom Pixel (Customer events)</h2>
+        <span class="pill">Fallback</span>
+      </div>
+
+      <ol style="margin:0 0 12px 18px; line-height:1.6">
+        <li>Admin খুলুন → <b>Settings → Customer events</b></li>
+        <li><b>Add custom pixel</b> ক্লিক করুন → কোডটা নিচের বক্স থেকে <b>Copy</b> করে paste করুন</li>
+        <li><b>Save</b> করে <b>Enable</b> দিন</li>
+      </ol>
+
+      <label style="margin-top:12px">Custom Pixel code</label>
+      <div class="field">
+        <textarea id="px-code" rows="14" spellcheck="false"
+          style="width:100%; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+                 font-size:12px; line-height:1.45; padding:12px; color:var(--text);
+                 background:#0b1428; border:1px solid var(--border); border-radius:12px;"></textarea>
+      </div>
+
+      <div class="row">
+        <button class="btn" id="btn-copy-code">Copy code</button>
+        <button class="btn secondary" id="btn-open-cust-events">Open Customer events</button>
+      </div>
+
+      <div id="ok-copy" class="toast ok">Copied!</div>
+      <div id="err-copy" class="toast err">Copy failed.</div>
+
+      <div class="footnote" style="margin-top:10px">
+        Note: যদি আপনার থিম <code>checkout.liquid</code> ব্যবহার করে, তাহলে Customer events (checkout-stage) ট্রিগার নাও পেতে পারে।
+        Checkout Extensibility (one-page checkout) হলে সবচেয়ে ভালো কাজ করে।
+      </div>
+    </div>
+
   </div>
 
 <script>
@@ -1839,6 +1874,83 @@ app.get("/admin/settings", (req, res) => {
     }catch(e){ toast('err-px', false, 'Error: '+e.message); }
     finally{ setLoading(btn,false); }
   });
+  <script>
+  // --- Manual section helpers ---
+  const manualBox = document.getElementById('manual-pixel');
+  const pxArea   = document.getElementById('px-code');
+
+  // পেজ লোড হলে /pixel.js থেকে কোড এনে textarea-তে বসাই
+  (async function preloadPixelCode(){
+    try{
+      const r = await fetch('/pixel.js', { cache:'no-store' });
+      const t = await r.text();
+      if(pxArea) pxArea.value = t || '';
+    }catch(e){
+      // fallback: যদি কোন কারণে fetch না হয়
+      if(pxArea && !pxArea.value) {
+        pxArea.value = `export default (analytics) => {\n  /* paste your pixel code here */\n};`;
+      }
+    }
+  })();
+
+  // Copy button
+  document.getElementById('btn-copy-code')?.addEventListener('click', async () => {
+    try{
+      await navigator.clipboard.writeText(pxArea.value || '');
+      toast('ok-copy', true, 'Copied!');
+    }catch(e){
+      toast('err-copy', false, 'Copy failed.');
+    }
+  });
+
+  // Open Customer events (admin) – shop input থেকে স্টোর হ্যান্ডেল বের করি
+  document.getElementById('btn-open-cust-events')?.addEventListener('click', () => {
+    const shop = val('shop');
+    if(!shop || !shop.endsWith('.myshopify.com')){
+      alert('Enter a valid shop domain first (your-store.myshopify.com)');
+      return;
+    }
+    const handle = shop.replace('.myshopify.com','');
+    const url = `https://admin.shopify.com/store/${encodeURIComponent(handle)}/settings/customer-events`;
+    window.open(url, '_blank');
+  });
+
+  // যখন API দিয়ে pixel enable ব্যর্থ হয় (REST/GQL unavailable),
+  // তখন manual fallback সেকশন দেখাই
+  function showManualFallback() {
+    if(manualBox) manualBox.style.display = 'block';
+    // নিশ্চিত করি যে কোডটা লোড হয়ে গেছে (preloadPixelCode আগেই রান হয়)
+    if(!pxArea?.value) {
+      fetch('/pixel.js').then(r=>r.text()).then(t => { if(pxArea) pxArea.value = t; }).catch(()=>{});
+    }
+    // ভিউতে স্ক্রল করে এনে দেই
+    manualBox?.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  // আপনার বিদ্যমান btn-pixel হ্যান্ডলারটাকে একটু আপডেট করি:
+  (function patchPixelButton(){
+    const btn = document.getElementById('btn-pixel');
+    if(!btn) return;
+    const origHandler = btn.onclick; // just in case
+
+    btn.addEventListener('click', async (e) => {
+      // উপরের কোডে already একটা listener আছে—তাই আমরা override করব না,
+      // বরং window.fetch wrapper ব্যবহার করে error ধরব। তবে সহজ পথে:
+      // নিচে setTimeout দিয়ে শেষ হওয়া রেসপন্স পড়ে DOM থেকে error toast চেক করি।
+      setTimeout(() => {
+        const err = document.getElementById('err-px');
+        if(err && err.style.display === 'block') {
+          // error টেক্সটে আমাদের সেই মেসেজটা থাকলে manual দেখাই
+          if(err.innerText.includes('Custom Web Pixel endpoints not available') ||
+             err.innerText.includes('GraphQL') || err.innerText.includes('Unauthorized')) {
+            showManualFallback();
+          }
+        }
+      }, 500);
+    });
+  })();
+</script>
+
 </script>
 </body>
 </html>`);
