@@ -1536,26 +1536,21 @@ app.get("/admin/settings", (req, res) => {
     <div id="err-dl" class="toast err">Failed.</div>
   </div>
 
-    <!-- 3A) Manual install — copy from pixel.js -->
   <div class="card">
-    <h2 class="section-title">3)Manual install — Custom Pixel (Customer events)</h2>
-    <p class="muted">If REST/GraphQL blocked, install manually from your Admin.</p>
-    <ol style="margin:0 0 12px 18px; line-height:1.6">
-      <li>Go to <b>Settings → Customer events</b></li>
-      <li>Click <b>Add custom pixel</b></li>
-      <li>Click <b>Copy custom pixel code</b> below and <b>paste</b> it into the editor</li>
-      <li><b>Save</b> → <b>Connect</b></li>
-    </ol>
-
-    <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap">
-      <button class="btn" id="btn-copy-pixel">Copy custom pixel code</button>
-      <button class="btn" id="btn-open-cust-events">Open Customer events</button>
+    <h2 class="section-title">3) Enable custom Web Pixel (Checkout)</h2>
+    <p class="muted">Installs/updates a customer web pixel with your checkout code.</p>
+    <div class="row">
+      <div>
+        <label>Pixel name</label>
+        <input id="pxname" type="text" value="analyticsgtm Pixel">
+      </div>
     </div>
-
-    <div id="ok-copy" class="toast ok">Copied!</div>
-    <div id="err-copy" class="toast err">Copy failed.</div>
+    <div style="display:flex;gap:12px;margin-top:14px">
+      <button class="btn" id="btn-pixel">Enable custom Web Pixel</button>
+    </div>
+    <div id="ok-px" class="toast ok">Pixel installed/updated.</div>
+    <div id="err-px" class="toast err">Failed.</div>
   </div>
-
 </div>
 
 <script>
@@ -1587,55 +1582,14 @@ document.getElementById('btn-dl').addEventListener('click', async () => {
   } catch(e) { toast('err-dl', false, 'Error: ' + e.message); }
 });
 
-// === Copy from /pixel.js → clipboard (with fallback) ===
-document.getElementById('btn-copy-pixel').addEventListener('click', async function () {
+document.getElementById('btn-pixel').addEventListener('click', async () => {
+  const payload = { shop: val('shop'), accessToken: val('tok'), name: val('pxname') };
   try {
-    const r = await fetch('/pixel.js', { cache: 'no-store' });
-    if (!r.ok) throw new Error('Unable to load /pixel.js');
-    const code = await r.text();
-
-    // Try modern Clipboard API first (requires secure context)
-    if (navigator.clipboard && window.isSecureContext) {
-      await navigator.clipboard.writeText(code);
-    } else {
-      // Fallback: temporary textarea select+copy
-      const ta = document.createElement('textarea');
-      ta.value = code;
-      ta.style.position = 'fixed';
-      ta.style.opacity = '0';
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      const ok = document.execCommand('copy');
-      document.body.removeChild(ta);
-      if (!ok) throw new Error('Copy not permitted');
-    }
-
-    toast('ok-copy', true, 'Custom pixel code copied!');
-  } catch (e) {
-    toast('err-copy', false, 'Copy failed: ' + e.message);
-  }
-});
-
-// === Open Admin → Settings → Customer events for this shop ===
-document.getElementById('btn-open-cust-events').addEventListener('click', function () {
-  var raw = (document.getElementById('shop') ? document.getElementById('shop').value : '').trim();
-  if (!raw) { alert('Enter your shop domain first (e.g., your-store.myshopify.com)'); return; }
-
-  // Clean + validate domain
-  var shop = raw.replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  if (!/^[a-z0-9-]+\.myshopify\.com$/i.test(shop)) {
-    alert('Please enter a valid myshopify.com domain, e.g. your-store.myshopify.com');
-    return;
-  }
-
-  // Classic admin URL on the shop domain
-  var url = 'https://' + shop + '/admin/settings/customer_events';
-  // (Alt new-style admin if you ever want)
-  // var handle = shop.split('.')[0];
-  // var url = 'https://admin.shopify.com/store/' + handle + '/settings/customer_events';
-
-  window.open(url, '_blank', 'noopener');
+    const r = await fetch('/api/pixel/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const j = await r.json().catch(()=>({}));
+    if(!r.ok || j.error) throw new Error(j.error || 'error');
+    toast('ok-px', true, 'Pixel installed/updated.');
+  } catch(e) { toast('err-px', false, 'Error: ' + e.message); }
 });
 </script>
 </html>`);
