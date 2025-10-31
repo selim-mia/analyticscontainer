@@ -1587,15 +1587,6 @@ document.getElementById('btn-dl').addEventListener('click', async () => {
   } catch(e) { toast('err-dl', false, 'Error: ' + e.message); }
 });
 
-document.getElementById('btn-pixel').addEventListener('click', async () => {
-  const payload = { shop: val('shop'), accessToken: val('tok'), name: val('pxname') };
-  try {
-    const r = await fetch('/api/pixel/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    const j = await r.json().catch(()=>({}));
-    if(!r.ok || j.error) throw new Error(j.error || 'error');
-    toast('ok-px', true, 'Pixel installed/updated.');
-  } catch(e) { toast('err-px', false, 'Error: ' + e.message); }
-});
 // === Copy from /pixel.js → clipboard (with fallback) ===
 document.getElementById('btn-copy-pixel').addEventListener('click', async function () {
   try {
@@ -1646,7 +1637,6 @@ document.getElementById('btn-open-cust-events').addEventListener('click', functi
 
   window.open(url, '_blank', 'noopener');
 });
-
 </script>
 </html>`);
 });
