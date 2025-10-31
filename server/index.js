@@ -25,8 +25,8 @@ function assert(v, msg) {
   if (!v) throw new Error(msg);
 }
 
-async function shopifyFetch(shop, accessToken, path, opts = {}) {
-  const url = `https://${shop}/admin/api/2024-10${path}`;
+async function shopifyFetch(shop, accessToken, p, opts = {}) {
+  const url = `https://${shop}/admin/api/2024-10${p}`;
   const res = await fetch(url, {
     ...opts,
     headers: {
@@ -71,71 +71,29 @@ const UDL_SNIPPET_VALUE = `<script>
   * Email: analyticsgtm@gmail.com 
   * Last Update: 27 September 2025
   */
-  
+
   (function() {
       class Ultimate_Shopify_DataLayer {
         constructor() {
           window.dataLayer = window.dataLayer || []; 
-          
-          // use a prefix of events name
           this.eventPrefix = '';
-
-          //Keep the value false to get non-formatted product ID
           this.formattedItemId = true; 
-
-          // data schema
           this.dataSchema = {
-            ecommerce: {
-                show: true
-            },
-            dynamicRemarketing: {
-                show: false,
-                business_vertical: 'retail'
-            }
+            ecommerce: { show: true },
+            dynamicRemarketing: { show: false, business_vertical: 'retail' }
           }
-
-          // add to wishlist selectors
-          this.addToWishListSelectors = {
-            'addWishListIcon': '',
-            'gridItemSelector': '',
-            'productLinkSelector': 'a[href*="/products/"]'
-          }
-
-          // quick view selectors
-          this.quickViewSelector = {
-            'quickViewElement': '',
-            'gridItemSelector': '',
-            'productLinkSelector': 'a[href*="/products/"]'
-          }
-
-          // mini cart button selector
-          this.miniCartButton = [
-            'a[href="/cart"]', 
-          ];
+          this.addToWishListSelectors = { 'addWishListIcon': '', 'gridItemSelector': '', 'productLinkSelector': 'a[href*="/products/"]' }
+          this.quickViewSelector = { 'quickViewElement': '', 'gridItemSelector': '', 'productLinkSelector': 'a[href*="/products/"]' }
+          this.miniCartButton = ['a[href="/cart"]'];
           this.miniCartAppersOn = 'click';
-
-
-          // begin checkout buttons/links selectors
           this.beginCheckoutButtons = [
-            'input[name="checkout"]',
-            'button[name="checkout"]',
-            'a[href="/checkout"]',
-            '.additional-checkout-buttons',
+            'input[name="checkout"]','button[name="checkout"]','a[href="/checkout"]','.additional-checkout-buttons',
           ];
-
-          // direct checkout button selector
-          this.shopifyDirectCheckoutButton = [
-            '.shopify-payment-button'
-          ]
-
-          //Keep the value true if Add to Cart redirects to the cart page
+          this.shopifyDirectCheckoutButton = ['.shopify-payment-button']
           this.isAddToCartRedirect = false;
-          
-          // keep the value false if cart items increment/decrement/remove refresh page 
           this.isAjaxCartIncrementDecrement = true;
-          
 
-          // Caution: Do not modify anything below this line, as it may result in it not functioning correctly.
+          // Caution: The following Liquid references require Shopify theme context
           this.cart = {{ cart | json }}
           this.countryCode = "{{ shop.address.country_code }}";
           this.storeURL = "{{ shop.secure_url }}";
@@ -144,31 +102,13 @@ const UDL_SNIPPET_VALUE = `<script>
           this.itemsList = [];
         }
 
-        updateCart() {
-          fetch("/cart.js")
-          .then((response) => response.json())
-          .then((data) => {
-            this.cart = data;
-          });
-        }
+        updateCart() { fetch("/cart.js").then(r => r.json()).then(d => { this.cart = d; }); }
 
-       debounce(delay) {         
-          let timeoutId;
-          return function(func) {
-            const context = this;
-            const args = arguments;
-            
-            clearTimeout(timeoutId);
-            
-            timeoutId = setTimeout(function() {
-              func.apply(context, args);
-            }, delay);
-          };
-        }
+        debounce(delay) { let t; return function(fn){ const ctx=this,args=arguments; clearTimeout(t); t=setTimeout(function(){ fn.apply(ctx,args); },delay);} }
 
         eventConsole(eventName, eventData) {
-          const css1 = 'background: red; color: #fff; font-size: normal; border-radius: 3px 0 0 3px; padding: 3px 4px;';
-          const css2 = 'background-color: blue; color: #fff; font-size: normal; border-radius: 0 3px 3px 0; padding: 3px 4px;';
+          const css1 = 'background: red; color: #fff; border-radius: 3px 0 0 3px; padding: 3px 4px;';
+          const css2 = 'background-color: blue; color: #fff; border-radius: 0 3px 3px 0; padding: 3px 4px;';
           console.log('%cGTM DataLayer Event:%c' + eventName, css1, css2, eventData);
         }
 
@@ -178,18 +118,10 @@ const UDL_SNIPPET_VALUE = `<script>
             this.searchPageData();
             this.miniCartData();
             this.beginCheckoutData();
-  
-            {% if template contains 'cart' %}
-              this.viewCartPageData();
-            {% endif %}
-  
-            {% if template contains 'product' %}
-              this.productSinglePage();
-            {% endif %}
-  
-            {% if template contains 'collection' %}
-              this.collectionsPageData();
-            {% endif %}
+
+            {% if template contains 'cart' %} this.viewCartPageData(); {% endif %}
+            {% if template contains 'product' %} this.productSinglePage(); {% endif %}
+            {% if template contains 'collection' %} this.collectionsPageData(); {% endif %}
             
             this.addToWishListData();
             this.quickViewData();
@@ -200,7 +132,6 @@ const UDL_SNIPPET_VALUE = `<script>
             this.loginRegisterData();
         }        
 
-        //logged-in customer data 
         customerData() {
             const currentUser = {};
             {% if customer %}
@@ -210,7 +141,6 @@ const UDL_SNIPPET_VALUE = `<script>
               currentUser.full_name = "{{ customer.name }}";
               currentUser.email = "{{ customer.email }}";
               currentUser.phone = "{{ customer.default_address.phone }}";
-          
               {% if customer.default_address %}
                 currentUser.address = {
                   address_summary: "{{ customer.default_address.summary }}",
@@ -227,51 +157,30 @@ const UDL_SNIPPET_VALUE = `<script>
               {% endif %}
             {% endif %}
 
-            if (currentUser.email) {
-              currentUser.hash_email = "{{ customer.email | sha256 }}"
-            }
-
-            if (currentUser.phone) {
-              currentUser.hash_phone = "{{ customer.phone | sha256 }}"
-            }
+            if (currentUser.email) currentUser.hash_email = "{{ customer.email | sha256 }}"
+            if (currentUser.phone) currentUser.hash_phone = "{{ customer.phone | sha256 }}"
 
             window.dataLayer = window.dataLayer || [];
-            dataLayer.push({
-              customer: currentUser
-            });
+            dataLayer.push({ customer: currentUser });
         }
 
-        // add_to_cart, remove_from_cart, search
         ajaxRequestData() {
           const self = this;
-          
-          // handle non-ajax add to cart
           if(this.isAddToCartRedirect) {
             document.addEventListener('submit', function(event) {
               const addToCartForm = event.target.closest('form[action="/cart/add"]');
               if(addToCartForm) {
                 event.preventDefault();
-                
                 const formData = new FormData(addToCartForm);
-            
-                fetch(window.Shopify.routes.root + 'cart/add.js', {
-                  method: 'POST',
-                  body: formData
-                })
-                .then(response => {
-                    window.location.href = "{{ routes.cart_url }}";
-                })
-                .catch((error) => {
-                  console.error('Error:', error);
-                });
+                fetch(window.Shopify.routes.root + 'cart/add.js', { method:'POST', body:formData })
+                .then(() => { window.location.href = "{{ routes.cart_url }}"; })
+                .catch((error) => { console.error('Error:', error); });
               }
             });
           }
           
-          // fetch
           let originalFetch = window.fetch;
           let debounce = this.debounce(800);
-          
           window.fetch = function () {
             return originalFetch.apply(this, arguments).then((response) => {
               if (response.ok) {
@@ -290,30 +199,24 @@ const UDL_SNIPPET_VALUE = `<script>
                             const products = data.resources.results.products;
                             if(products.length) {
                               const fetchRequests = products.map(product =>
-                                fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`)
-                                  .then(response => response.json())
-                                  .catch(error => console.error('Error fetching:', error))
+                                fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`).then(r => r.json())
                               );
-
                               Promise.all(fetchRequests)
                                 .then(products => {
-                                    const items = products.map((product) => {
-                                      return {
-                                        product_id: product.id,
-                                        product_title: product.title,
-                                        variant_id: product.variants[0].id,
-                                        variant_title: product.variants[0].title,
-                                        vendor: product.vendor,
-                                        total_discount: 0,
-                                        final_price: product.price_min,
-                                        product_type: product.type, 
-                                        quantity: 1
-                                      }
-                                    });
-
+                                    const items = products.map((product) => ({
+                                      product_id: product.id,
+                                      product_title: product.title,
+                                      variant_id: product.variants[0].id,
+                                      variant_title: product.variants[0].title,
+                                      vendor: product.vendor,
+                                      total_discount: 0,
+                                      final_price: product.price_min,
+                                      product_type: product.type, 
+                                      quantity: 1
+                                    }));
                                     self.ecommerceDataLayer('search', {search_term, items});
                                 })
-                            }else {
+                            } else {
                               self.ecommerceDataLayer('search', {search_term, items: []});
                             }
                       });
@@ -322,213 +225,151 @@ const UDL_SNIPPET_VALUE = `<script>
                 else if (typeof requestURL === 'string' && requestURL.includes("/cart/add")) {
                   cloneResponse.text().then((text) => {
                     let data = JSON.parse(text);
-
                     if(data.items && Array.isArray(data.items)) {
-                      data.items.forEach(function(item) {
-                         self.ecommerceDataLayer('add_to_cart', {items: [item]});
-                      })
+                      data.items.forEach(function(item) { self.ecommerceDataLayer('add_to_cart', {items: [item]}); })
                     } else {
                       self.ecommerceDataLayer('add_to_cart', {items: [data]});
                     }
                     self.updateCart();
                   });
-                }else if(typeof requestURL === 'string' && (requestURL.includes("/cart/change") || requestURL.includes("/cart/update"))) {
-                  
+                } else if(typeof requestURL === 'string' && (requestURL.includes("/cart/change") || requestURL.includes("/cart/update"))) {
                    cloneResponse.text().then((text) => {
-                     
                     let newCart = JSON.parse(text);
                     let newCartItems = newCart.items;
                     let oldCartItems = self.cart.items;
 
                     for(let i = 0; i < oldCartItems.length; i++) {
                       let item = oldCartItems[i];
-                      let newItem = newCartItems.find(newItems => newItems.id === item.id);
-
-
+                      let newItem = newCartItems.find(n => n.id === item.id);
                       if(newItem) {
-
                         if(newItem.quantity > item.quantity) {
-                          // cart item increment
                           let quantity = (newItem.quantity - item.quantity);
                           let updatedItem = {...item, quantity}
                           self.ecommerceDataLayer('add_to_cart', {items: [updatedItem]});
                           self.updateCart(); 
-
-                        }else if(newItem.quantity < item.quantity) {
-                          // cart item decrement
+                        } else if(newItem.quantity < item.quantity) {
                           let quantity = (item.quantity - newItem.quantity);
                           let updatedItem = {...item, quantity}
                           self.ecommerceDataLayer('remove_from_cart', {items: [updatedItem]});
                           self.updateCart(); 
                         }
-                        
-
-                      }else {
+                      } else {
                         self.ecommerceDataLayer('remove_from_cart', {items: [item]});
                         self.updateCart(); 
                       }
                     }
-                     
                   });
                 }
               }
               return response;
             });
           }
-          // end fetch 
 
-
-          //xhr
           var origXMLHttpRequest = XMLHttpRequest;
           XMLHttpRequest = function() {
             var requestURL;
-    
             var xhr = new origXMLHttpRequest();
             var origOpen = xhr.open;
             var origSend = xhr.send;
-            
-            // Override the \`open\` function.
-            xhr.open = function(method, url) {
-                requestURL = url;
-                return origOpen.apply(this, arguments);
-            };
-    
-    
+            xhr.open = function(method, url) { requestURL = url; return origOpen.apply(this, arguments); };
             xhr.send = function() {
-    
-                // Only proceed if the request URL matches what we're looking for.
                 if (typeof requestURL === 'string' && (requestURL.includes("/cart/add") || requestURL.includes("/cart/change") || /.*\\/search\\/?\\.*/.test(requestURL) && requestURL.includes('q='))) {
-        
                     xhr.addEventListener('load', function() {
-                        if (xhr.readyState === 4) {
-                            if (xhr.status >= 200 && xhr.status < 400) { 
-
-                              if(typeof requestURL === 'string' && /.*\\/search\\/?\\.*/.test(requestURL) && requestURL.includes('q=') && !requestURL.includes('&requestFrom=uldt')) {
-                                const queryString = requestURL.split('?')[1];
-                                const urlParams = new URLSearchParams(queryString);
-                                const search_term = urlParams.get("q");
-
-                                debounce(function() {
-                                    fetch(\`\${self.storeURL}/search/suggest.json?q=\${search_term}&resources[type]=product&requestFrom=uldt\`)
-                                      .then(res => res.json())
-                                      .then(function(data) {
-                                            const products = data.resources.results.products;
-                                            if(products.length) {
-                                              const fetchRequests = products.map(product =>
-                                                fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`)
-                                                  .then(response => response.json())
-                                                  .catch(error => console.error('Error fetching:', error))
-                                              );
-                
-                                              Promise.all(fetchRequests)
-                                                .then(products => {
-                                                    const items = products.map((product) => {
-                                                      return {
-                                                        product_id: product.id,
-                                                        product_title: product.title,
-                                                        variant_id: product.variants[0].id,
-                                                        variant_title: product.variants[0].title,
-                                                        vendor: product.vendor,
-                                                        total_discount: 0,
-                                                        final_price: product.price_min,
-                                                        product_type: product.type, 
-                                                        quantity: 1
-                                                      }
-                                                    });
-                
-                                                    self.ecommerceDataLayer('search', {search_term, items});
-                                                })
-                                            }else {
-                                              self.ecommerceDataLayer('search', {search_term, items: []});
-                                            }
-                                      });
+                        if (xhr.readyState === 4 && xhr.status >= 200 && xhr.status < 400) { 
+                          if(typeof requestURL === 'string' && /.*\\/search\\/?\\.*/.test(requestURL) && requestURL.includes('q=') && !requestURL.includes('&requestFrom=uldt')) {
+                            const queryString = requestURL.split('?')[1];
+                            const urlParams = new URLSearchParams(queryString);
+                            const search_term = urlParams.get("q");
+                            let debounce = self.debounce(800);
+                            debounce(function() {
+                                fetch(\`\${self.storeURL}/search/suggest.json?q=\${search_term}&resources[type]=product&requestFrom=uldt\`)
+                                  .then(res => res.json())
+                                  .then(function(data) {
+                                        const products = data.resources.results.products;
+                                        if(products.length) {
+                                          const fetchRequests = products.map(product =>
+                                            fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`).then(r => r.json())
+                                          );
+                                          Promise.all(fetchRequests).then(products => {
+                                              const items = products.map((product) => ({
+                                                product_id: product.id,
+                                                product_title: product.title,
+                                                variant_id: product.variants[0].id,
+                                                variant_title: product.variants[0].title,
+                                                vendor: product.vendor,
+                                                total_discount: 0,
+                                                final_price: product.price_min,
+                                                product_type: product.type, 
+                                                quantity: 1
+                                              }));
+                                              self.ecommerceDataLayer('search', {search_term, items});
+                                          })
+                                        } else {
+                                          self.ecommerceDataLayer('search', {search_term, items: []});
+                                        }
                                   });
-
+                              });
+                          }
+                          else if(typeof requestURL === 'string' && requestURL.includes("/cart/add")) {
+                              const data = JSON.parse(xhr.responseText);
+                              if(data.items && Array.isArray(data.items)) {
+                                data.items.forEach(function(item) { self.ecommerceDataLayer('add_to_cart', {items: [item]}); })
+                              } else {
+                                self.ecommerceDataLayer('add_to_cart', {items: [data]});
                               }
-
-                              else if(typeof requestURL === 'string' && requestURL.includes("/cart/add")) {
-                                  const data = JSON.parse(xhr.responseText);
-
-                                  if(data.items && Array.isArray(data.items)) {
-                                    data.items.forEach(function(item) {
-                                        self.ecommerceDataLayer('add_to_cart', {items: [item]});
-                                      })
-                                  } else {
-                                    self.ecommerceDataLayer('add_to_cart', {items: [data]});
+                              self.updateCart();
+                           } else if(typeof requestURL === 'string' && requestURL.includes("/cart/change")) {
+                              const newCart = JSON.parse(xhr.responseText);
+                              const newCartItems = newCart.items;
+                              let oldCartItems = self.cart.items;
+                              for(let i = 0; i < oldCartItems.length; i++) {
+                                let item = oldCartItems[i];
+                                let newItem = newCartItems.find(n => n.id === item.id);
+                                if(newItem) {
+                                  if(newItem.quantity > item.quantity) {
+                                    let quantity = (newItem.quantity - item.quantity);
+                                    let updatedItem = {...item, quantity}
+                                    self.ecommerceDataLayer('add_to_cart', {items: [updatedItem]});
+                                    self.updateCart(); 
+                                  } else if(newItem.quantity < item.quantity) {
+                                    let quantity = (item.quantity - newItem.quantity);
+                                    let updatedItem = {...item, quantity}
+                                    self.ecommerceDataLayer('remove_from_cart', {items: [updatedItem]});
+                                    self.updateCart(); 
                                   }
-                                  self.updateCart();
-                                 
-                               }else if(typeof requestURL === 'string' && requestURL.includes("/cart/change")) {
-                                 
-                                  const newCart = JSON.parse(xhr.responseText);
-                                  const newCartItems = newCart.items;
-                                  let oldCartItems = self.cart.items;
-              
-                                  for(let i = 0; i < oldCartItems.length; i++) {
-                                    let item = oldCartItems[i];
-                                    let newItem = newCartItems.find(newItems => newItems.id === item.id);
-              
-              
-                                    if(newItem) {
-                                      if(newItem.quantity > item.quantity) {
-                                        // cart item increment
-                                        let quantity = (newItem.quantity - item.quantity);
-                                        let updatedItem = {...item, quantity}
-                                        self.ecommerceDataLayer('add_to_cart', {items: [updatedItem]});
-                                        self.updateCart(); 
-              
-                                      }else if(newItem.quantity < item.quantity) {
-                                        // cart item decrement
-                                        let quantity = (item.quantity - newItem.quantity);
-                                        let updatedItem = {...item, quantity}
-                                        self.ecommerceDataLayer('remove_from_cart', {items: [updatedItem]});
-                                        self.updateCart(); 
-                                      }
-                                      
-              
-                                    }else {
-                                      self.ecommerceDataLayer('remove_from_cart', {items: [item]});
-                                      self.updateCart(); 
-                                    }
-                                  }
-                               }          
-                            }
+                                } else {
+                                  self.ecommerceDataLayer('remove_from_cart', {items: [item]});
+                                  self.updateCart(); 
+                                }
+                              }
+                           }          
                         }
                     });
                 }
-    
                 return origSend.apply(this, arguments);
             };
-    
             return xhr;
           }; 
-          //end xhr
         }
 
-        // search event from search page
         searchPageData() {
           const self = this;
           let pageUrl = window.location.href;
-          
           if(/.+\\/search\\?.*\\&?q=.+/.test(pageUrl)) {   
             const queryString = pageUrl.split('?')[1];
             const urlParams = new URLSearchParams(queryString);
             const search_term = urlParams.get("q");
-                
             fetch(\`{{ shop.secure_url }}/search/suggest.json?q=\${search_term}&resources[type]=product&requestFrom=uldt\`)
             .then(res => res.json())
             .then(function(data) {
                   const products = data.resources.results.products;
                   if(products.length) {
                     const fetchRequests = products.map(product =>
-                      fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`)
-                        .then(response => response.json())
-                        .catch(error => console.error('Error fetching:', error))
+                      fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`).then(r => r.json())
                     );
                     Promise.all(fetchRequests)
                     .then(products => {
-                        const items = products.map((product) => {
-                            return {
+                        const items = products.map((product) => ({
                             product_id: product.id,
                             product_title: product.title,
                             variant_id: product.variants[0].id,
@@ -538,25 +379,20 @@ const UDL_SNIPPET_VALUE = `<script>
                             final_price: product.price_min,
                             product_type: product.type, 
                             quantity: 1
-                            }
-                        });
-
+                        }));
                         self.ecommerceDataLayer('search', {search_term, items});
                     });
-                  }else {
+                  } else {
                     self.ecommerceDataLayer('search', {search_term, items: []});
                   }
             });
           }
         }
 
-        // view_cart
         miniCartData() {
           if(this.miniCartButton.length) {
             let self = this;
-            if(this.miniCartAppersOn === 'hover') {
-              this.miniCartAppersOn = 'mouseenter';
-            }
+            if(this.miniCartAppersOn === 'hover') this.miniCartAppersOn = 'mouseenter';
             this.miniCartButton.forEach((selector) => {
               let miniCartButtons = document.querySelectorAll(selector);
               miniCartButtons.forEach((miniCartButton) => {
@@ -568,23 +404,16 @@ const UDL_SNIPPET_VALUE = `<script>
           }
         }
 
-        // begin_checkout
         beginCheckoutData() {
           let self = this;
           document.addEventListener('pointerdown', (event) => {
             let targetElement = event.target.closest(self.beginCheckoutButtons.join(', '));
-            if(targetElement) {
-              self.ecommerceDataLayer('begin_checkout', self.cart);
-            }
+            if(targetElement) self.ecommerceDataLayer('begin_checkout', self.cart);
           });
         }
 
-        // view_cart, add_to_cart, remove_from_cart
         viewCartPageData() {
-          
           this.ecommerceDataLayer('view_cart', this.cart);
-
-          //if cart quantity chagne reload page 
           if(!this.isAjaxCartIncrementDecrement) {
             const self = this;
             document.addEventListener('pointerdown', (event) => {
@@ -596,20 +425,12 @@ const UDL_SNIPPET_VALUE = `<script>
                 const newQuantity = urlParams.get("quantity");
                 const line = urlParams.get("line");
                 const cart_id = urlParams.get("id");
-        
-                
                 if(newQuantity && (line || cart_id)) {
-                  let item = line ? {...self.cart.items[line - 1]} : self.cart.items.find(item => item.key === cart_id);
-        
-                  let event = 'add_to_cart';
-                  if(newQuantity < item.quantity) {
-                    event = 'remove_from_cart';
-                  }
-        
+                  let item = line ? {...self.cart.items[line - 1]} : self.cart.items.find(i => i.key === cart_id);
+                  let eventName = +newQuantity < item.quantity ? 'remove_from_cart' : 'add_to_cart';
                   let quantity = Math.abs(newQuantity - item.quantity);
                   item['quantity'] = quantity;
-        
-                  self.ecommerceDataLayer(event, {items: [item]});
+                  self.ecommerceDataLayer(eventName, {items: [item]});
                 }
               }
             });
@@ -634,78 +455,58 @@ const UDL_SNIPPET_VALUE = `<script>
               final_price: {{ product.selected_or_first_available_variant.price }},
               quantity: 1
           };
-          
           const variants = {{ product.variants | json }}
           this.ecommerceDataLayer('view_item', {items: [item]});
 
           if(this.shopifyDirectCheckoutButton.length) {
               let self = this;
               document.addEventListener('pointerdown', (event) => {  
-                let target = event.target;
                 let checkoutButton = event.target.closest(this.shopifyDirectCheckoutButton.join(', '));
-
                 if(checkoutButton && (variants || self.quickViewVariants)) {
-
                     let checkoutForm = checkoutButton.closest('form[action*="/cart/add"]');
                     if(checkoutForm) {
-
                         let variant_id = null;
                         let varientInput = checkoutForm.querySelector('input[name="id"]');
                         let varientIdFromURL = new URLSearchParams(window.location.search).get('variant');
                         let firstVarientId = item.variant_id;
-
-                        if(varientInput) {
-                          variant_id = parseInt(varientInput.value);
-                        }else if(varientIdFromURL) {
-                          variant_id = varientIdFromURL;
-                        }else if(firstVarientId) {
-                          variant_id = firstVarientId;
-                        }
+                        if(varientInput) variant_id = parseInt(varientInput.value);
+                        else if(varientIdFromURL) variant_id = varientIdFromURL;
+                        else if(firstVarientId) variant_id = firstVarientId;
 
                         if(variant_id) {
                             variant_id = parseInt(variant_id);
-
                             let quantity = 1;
                             let quantitySelector = checkoutForm.getAttribute('id');
                             if(quantitySelector) {
                               let quentityInput = document.querySelector('input[name="quantity"][form="'+quantitySelector+'"]');
-                              if(quentityInput) {
-                                  quantity = +quentityInput.value;
-                              }
+                              if(quentityInput) quantity = +quentityInput.value;
                             }
-                          
                             if(variant_id) {
-                                let variant = variants.find(item => item.id === +variant_id);
+                                let variant = variants.find(i => i.id === +variant_id);
                                 if(variant && item) {
-                                    variant_id
                                     item['variant_id'] = variant_id;
                                     item['variant_title'] = variant.title;
                                     item['final_price'] = variant.price;
                                     item['quantity'] = quantity;
-                                    
                                     self.ecommerceDataLayer('add_to_cart', {items: [item]});
                                     self.ecommerceDataLayer('begin_checkout', {items: [item]});
-                                }else if(self.quickViewedItem) {                                  
-                                  let variant = self.quickViewVariants.find(item => item.id === +variant_id);
-                                  if(variant) {
+                                } else if(self.quickViewedItem) {                                  
+                                  let v2 = self.quickViewVariants.find(i => i.id === +variant_id);
+                                  if(v2) {
                                     self.quickViewedItem['variant_id'] = variant_id;
-                                    self.quickViewedItem['variant_title'] = variant.title;
-                                    self.quickViewedItem['final_price'] = parseFloat(variant.price) * 100;
+                                    self.quickViewedItem['variant_title'] = v2.title;
+                                    self.quickViewedItem['final_price'] = parseFloat(v2.price) * 100;
                                     self.quickViewedItem['quantity'] = quantity;
-                                    
                                     self.ecommerceDataLayer('add_to_cart', {items: [self.quickViewedItem]});
                                     self.ecommerceDataLayer('begin_checkout', {items: [self.quickViewedItem]});
-                                    
                                   }
                                 }
                             }
                         }
                     }
-
                 }
               }); 
           }
-          
           {% endif %}
         }
 
@@ -731,63 +532,50 @@ const UDL_SNIPPET_VALUE = `<script>
               {% endfor %}
               ]
           };
-
           this.itemsList = ecommerce.items;
           ecommerce['item_list_id'] = {{ collection.id | json }}
           ecommerce['item_list_name'] = {{ collection.title | json }}
-
           this.ecommerceDataLayer('view_item_list', ecommerce);
         }
         
-        
-        // add to wishlist
         addToWishListData() {
           if(this.addToWishListSelectors && this.addToWishListSelectors.addWishListIcon) {
             const self = this;
             document.addEventListener('pointerdown', (event) => {
               let target = event.target;
-              
               if(target.closest(self.addToWishListSelectors.addWishListIcon)) {
                 let pageULR = window.location.href.replace(/\\?.+/, '');
                 let requestURL = undefined;
-          
-                if(/\\/products\\/[^/]+$/.test(pageULR)) {
-                  requestURL = pageULR;
-                } else if(self.addToWishListSelectors.gridItemSelector && self.addToWishListSelectors.productLinkSelector) {
+                if(/\\/products\\/[^/]+$/.test(pageULR)) requestURL = pageULR;
+                else if(self.addToWishListSelectors.gridItemSelector && self.addToWishListSelectors.productLinkSelector) {
                   let itemElement = target.closest(self.addToWishListSelectors.gridItemSelector);
                   if(itemElement) {
                     let linkElement = itemElement.querySelector(self.addToWishListSelectors.productLinkSelector); 
                     if(linkElement) {
                       let link = linkElement.getAttribute('href').replace(/\\?.+/g, '');
-                      if(link && /\\/products\\/[^/]+$/.test(link)) {
-                        requestURL = link;
-                      }
+                      if(link && /\\/products\\/[^/]+$/.test(link)) requestURL = link;
                     }
                   }
                 }
-
                 if(requestURL) {
-                  fetch(requestURL + '.json')
-                    .then(res => res.json())
-                    .then(result => {
-                      let data = result.product;                    
-                      if(data) {
-                        let dataLayerData = {
-                          product_id: data.id,
-                            variant_id: data.variants[0].id,
-                            product_title: data.title,
-                          quantity: 1,
-                          final_price: parseFloat(data.variants[0].price) * 100,
-                          total_discount: 0,
-                          product_type: data.product_type,
-                          vendor: data.vendor,
-                          variant_title: (data.variants[0].title !== 'Default Title') ? data.variants[0].title : undefined,
-                          sku: data.variants[0].sku,
-                        }
-
-                        self.ecommerceDataLayer('add_to_wishlist', {items: [dataLayerData]});
+                  fetch(requestURL + '.json').then(res => res.json()).then(result => {
+                    let data = result.product;                    
+                    if(data) {
+                      let dataLayerData = {
+                        product_id: data.id,
+                        variant_id: data.variants[0].id,
+                        product_title: data.title,
+                        quantity: 1,
+                        final_price: parseFloat(data.variants[0].price) * 100,
+                        total_discount: 0,
+                        product_type: data.product_type,
+                        vendor: data.vendor,
+                        variant_title: (data.variants[0].title !== 'Default Title') ? data.variants[0].title : undefined,
+                        sku: data.variants[0].sku,
                       }
-                    });
+                      self.ecommerceDataLayer('add_to_wishlist', {items: [dataLayerData]});
+                    }
+                  });
                 }
               }
             });
@@ -802,42 +590,35 @@ const UDL_SNIPPET_VALUE = `<script>
               if(target.closest(self.quickViewSelector.quickViewElement)) {
                 let requestURL = undefined;
                 let itemElement = target.closest(this.quickViewSelector.gridItemSelector );
-                
                 if(itemElement) {
                   let linkElement = itemElement.querySelector(self.quickViewSelector.productLinkSelector); 
                   if(linkElement) {
                     let link = linkElement.getAttribute('href').replace(/\\?.+/g, '');
-                    if(link && /\\/products\\/[^/]+$/.test(link)) {
-                      requestURL = link;
-                    }
+                    if(link && /\\/products\\/[^/]+$/.test(link)) requestURL = link;
                   }
                 }   
-                
                 if(requestURL) {
-                    fetch(requestURL + '.json')
-                      .then(res => res.json())
-                      .then(result => {
-                        let data = result.product;                    
-                        if(data) {
-                          let dataLayerData = {
-                            product_id: data.id,
-                            variant_id: data.variants[0].id,
-                            product_title: data.title,
-                            quantity: 1,
-                            final_price: parseFloat(data.variants[0].price) * 100,
-                            total_discount: 0,
-                            product_type: data.product_type,
-                            vendor: data.vendor,
-                            variant_title: (data.variants[0].title !== 'Default Title') ? data.variants[0].title : undefined,
-                            sku: data.variants[0].sku,
-                          }
-  
-                          self.ecommerceDataLayer('view_item', {items: [dataLayerData]});
-                          self.quickViewVariants = data.variants;
-                          self.quickViewedItem = dataLayerData;
+                    fetch(requestURL + '.json').then(res => res.json()).then(result => {
+                      let data = result.product;                    
+                      if(data) {
+                        let dataLayerData = {
+                          product_id: data.id,
+                          variant_id: data.variants[0].id,
+                          product_title: data.title,
+                          quantity: 1,
+                          final_price: parseFloat(data.variants[0].price) * 100,
+                          total_discount: 0,
+                          product_type: data.product_type,
+                          vendor: data.vendor,
+                          variant_title: (data.variants[0].title !== 'Default Title') ? data.variants[0].title : undefined,
+                          sku: data.variants[0].sku,
                         }
-                      });
-                  }
+                        self.ecommerceDataLayer('view_item', {items: [dataLayerData]});
+                        self.quickViewVariants = data.variants;
+                        self.quickViewedItem = dataLayerData;
+                      }
+                    });
+                }
               }
             });
 
@@ -845,42 +626,32 @@ const UDL_SNIPPET_VALUE = `<script>
               if(this.shopifyDirectCheckoutButton.length) {
                 let self = this;
                 document.addEventListener('pointerdown', (event) => {
-                  let target = event.target;
                   let checkoutButton = event.target.closest(this.shopifyDirectCheckoutButton.join(', '));
-                  
                   if(self.quickViewVariants && self.quickViewedItem && self.quickViewVariants.length && checkoutButton) {
-
                     let checkoutForm = checkoutButton.closest('form[action*="/cart/add"]');
                     if(checkoutForm) {
                         let quantity = 1;
                         let varientInput = checkoutForm.querySelector('input[name="id"]');
                         let quantitySelector = checkoutForm.getAttribute('id');
-
                         if(quantitySelector) {
                           let quentityInput = document.querySelector('input[name="quantity"][form="'+quantitySelector+'"]');
-                          if(quentityInput) {
-                              quantity = +quentityInput.value;
-                          }
+                          if(quentityInput) quantity = +quentityInput.value;
                         }
-
                         if(varientInput) {
                             let variant_id = parseInt(varientInput.value);
-
                             if(variant_id) {
-                                const variant = self.quickViewVariants.find(item => item.id === +variant_id);
+                                const variant = self.quickViewVariants.find(i => i.id === +variant_id);
                                 if(variant && self.quickViewedItem) {
                                     self.quickViewedItem['variant_id'] = variant_id;
                                     self.quickViewedItem['variant_title'] = variant.title;
                                     self.quickViewedItem['final_price'] = parseFloat(variant.price) * 100;
                                     self.quickViewedItem['quantity'] = quantity; 
-    
                                     self.ecommerceDataLayer('add_to_cart', {items: [self.quickViewedItem]});
                                     self.ecommerceDataLayer('begin_checkout', {items: [self.quickViewedItem]});
                                 }
                             }
                         }
                     }
-
                   }
                 }); 
             }
@@ -888,38 +659,26 @@ const UDL_SNIPPET_VALUE = `<script>
           }
         }
 
-        // select_item events
         selectItemData() {
-          
           const self = this;
           const items = this.itemsList;
-
-          {% if template contains 'collection' %}            
+          {% if template contains 'collection' %}
             document.addEventListener('pointerdown', function(event) {
-                            
               const productLink = event.target.closest('a[href*="/products/"]');
-
               if(productLink) {
                   const linkUrl = productLink.getAttribute('href');
-
                   const matchProduct = (item) => {
                     var itemSlug = (item.url.split('/products/')[1]).split('#')[0].split('?')[0].trim();
                     var linkUrlItemSlug = (linkUrl.split('/products/')[1]).split('#')[0].split('?')[0].trim();
-                    
                     return itemSlug === linkUrlItemSlug;  
                   }
-                
                   const item = items.find(matchProduct);
                   const index = items.findIndex(matchProduct);
-                
-                  if(item) {
-                    self.ecommerceDataLayer('select_item', {items: [{...item, index: index}]});
-                  }
+                  if(item) self.ecommerceDataLayer('select_item', {items: [{...item, index: index}]});
               }
             });
           {% endif %}
 
-          // select item on varient change
           document.addEventListener('variant:change', function(event) {            
             const product_id = event.detail.product.id;
             const variant_id = event.detail.variant.id;
@@ -927,24 +686,13 @@ const UDL_SNIPPET_VALUE = `<script>
             const variant_title = event.detail.variant.public_title;
             const product_title = event.detail.product.title;
             const final_price = event.detail.variant.price;
-            const product_type = event.detail.product.type;
-
              const item = {
-                product_id: product_id,
-                product_title: product_title,
-                variant_id: variant_id,
-                variant_title: variant_title,
-                vendor: vendor,
-                final_price: final_price,
-                product_type: product_type, 
-                quantity: 1
+                product_id, product_title, variant_id, variant_title, vendor, final_price, product_type: event.detail.product.type, quantity: 1
              }
-            
              self.ecommerceDataLayer('select_item', {items: [item]});
           });
         }
 
-        // all ecommerce events
         ecommerceDataLayer(event, data) {
           const self = this;
           dataLayer.push({ 'ecommerce': null });
@@ -963,116 +711,68 @@ const UDL_SNIPPET_VALUE = `<script>
                     'price': +((item.final_price / 100).toFixed(2)),
                     'discount': item.total_discount ? +((item.total_discount / 100).toFixed(2)) : 0 
                 }
-
-                if(item.product_type) {
-                  dataLayerItem['item_category'] = item.product_type;
-                }
-                
-                if(item.vendor) {
-                  dataLayerItem['item_brand'] = item.vendor;
-                }
-               
-                if(item.variant_title && item.variant_title !== 'Default Title') {
-                  dataLayerItem['item_variant'] = item.variant_title;
-                }
-              
-                if(item.sku) {
-                  dataLayerItem['sku'] = item.sku;
-                }
-
-                if(item.item_list_name) {
-                  dataLayerItem['item_list_name'] = item.item_list_name;
-                }
-
-                if(item.item_list_id) {
-                  dataLayerItem['item_list_id'] = item.item_list_id.toString()
-                }
-
+                if(item.product_type) dataLayerItem['item_category'] = item.product_type;
+                if(item.vendor) dataLayerItem['item_brand'] = item.vendor;
+                if(item.variant_title && item.variant_title !== 'Default Title') dataLayerItem['item_variant'] = item.variant_title;
+                if(item.sku) dataLayerItem['sku'] = item.sku;
+                if(item.item_list_name) dataLayerItem['item_list_name'] = item.item_list_name;
+                if(item.item_list_id) dataLayerItem['item_list_id'] = item.item_list_id.toString()
                 return dataLayerItem;
               })
             }
           }
-
-          if(data.total_price !== undefined) {
-            dataLayerData['ecommerce']['value'] =  +((data.total_price / 100).toFixed(2));
-          } else {
-            dataLayerData['ecommerce']['value'] = +(dataLayerData['ecommerce']['items'].reduce((total, item) => total + (item.price * item.quantity), 0)).toFixed(2);
-          }
-          
-          if(data.item_list_id) {
-            dataLayerData['ecommerce']['item_list_id'] = data.item_list_id;
-          }
-          
-          if(data.item_list_name) {
-            dataLayerData['ecommerce']['item_list_name'] = data.item_list_name;
-          }
-
-          if(data.search_term) {
-            dataLayerData['search_term'] = data.search_term;
-          }
+          if(data.total_price !== undefined) dataLayerData['ecommerce']['value'] =  +((data.total_price / 100).toFixed(2));
+          else dataLayerData['ecommerce']['value'] = +(dataLayerData['ecommerce']['items'].reduce((t, i) => t + (i.price * i.quantity), 0)).toFixed(2);
+          if(data.item_list_id) dataLayerData['ecommerce']['item_list_id'] = data.item_list_id;
+          if(data.item_list_name) dataLayerData['ecommerce']['item_list_name'] = data.item_list_name;
+          if(data.search_term) dataLayerData['search_term'] = data.search_term;
 
           if(self.dataSchema.dynamicRemarketing && self.dataSchema.dynamicRemarketing.show) {
             dataLayer.push({ 'dynamicRemarketing': null });
             dataLayerData['dynamicRemarketing'] = {
                 value: dataLayerData.ecommerce.value,
-                items: dataLayerData.ecommerce.items.map(item => ({id: item.item_id, google_business_vertical: self.dataSchema.dynamicRemarketing.business_vertical}))
+                items: dataLayerData.ecommerce.items.map(it => ({id: it.item_id, google_business_vertical: self.dataSchema.dynamicRemarketing.business_vertical}))
             }
           }
-
-          if(!self.dataSchema.ecommerce ||  !self.dataSchema.ecommerce.show) {
-            delete dataLayerData['ecommerce'];
-          }
-
+          if(!self.dataSchema.ecommerce ||  !self.dataSchema.ecommerce.show) delete dataLayerData['ecommerce'];
           dataLayer.push(dataLayerData);
           self.eventConsole(self.eventPrefix + event, dataLayerData);
         }
 
-        
-        // contact form submit & newsletters signup
         formData() {
           const self = this;
           document.addEventListener('submit', function(event) {
-
             let targetForm = event.target.closest('form[action^="/contact"]');
-
-
             if(targetForm) {
               const formData = {
                 form_location: window.location.href,
                 form_id: targetForm.getAttribute('id'),
                 form_classes: targetForm.getAttribute('class')
               };
-                            
               let formType = targetForm.querySelector('input[name="form_type"]');
               let inputs = targetForm.querySelectorAll("input:not([type=hidden]):not([type=submit]), textarea, select");
-              
               inputs.forEach(function(input) {
                 var inputName = input.name;
                 var inputValue = input.value;
-                
                 if (inputName && inputValue) {
-                  var matches = inputName.match(/\\[(.*?)\\]/);
-                  if (matches && matches.length > 1) {
-                     var fieldName = matches[1];
+                  var m = inputName.match(/\\[(.*?)\\]/);
+                  if (m && m.length > 1) {
+                     var fieldName = m[1];
                      formData[fieldName] = input.value;
                   }
                 }
               });
-              
               if(formType && formType.value === 'customer') {
                 dataLayer.push({ event: self.eventPrefix + 'newsletter_signup', ...formData});
                 self.eventConsole(self.eventPrefix + 'newsletter_signup', { event: self.eventPrefix + 'newsletter_signup', ...formData});
-
               } else if(formType && formType.value === 'contact') {
                 dataLayer.push({ event: self.eventPrefix + 'contact_form_submit', ...formData});
                 self.eventConsole(self.eventPrefix + 'contact_form_submit', { event: self.eventPrefix + 'contact_form_submit', ...formData});
               }
             }
           });
-
         }
 
-        // phone_number_click event
         phoneClickData() {
           const self = this; 
           document.addEventListener('click', function(event) {
@@ -1086,14 +786,12 @@ const UDL_SNIPPET_VALUE = `<script>
                 link_id: target.getAttribute('id'),
                 phone_number
               }
-
               dataLayer.push(eventData);
               self.eventConsole(self.eventPrefix + 'phone_number_click', eventData);
             }
           });
         }
   
-        // email_click event
         emailClickData() {
           const self = this; 
           document.addEventListener('click', function(event) {
@@ -1107,42 +805,32 @@ const UDL_SNIPPET_VALUE = `<script>
                 link_id: target.getAttribute('id'),
                 email_address
               }
-
               dataLayer.push(eventData);
               self.eventConsole(self.eventPrefix + 'email_click', eventData);
             }
           });
         }
 
-        //login register 
         loginRegisterData() {
-          
           const self = this; 
           let isTrackedLogin = false;
           let isTrackedRegister = false;
-          
           if(window.location.href.includes('/account/login')) {
             document.addEventListener('submit', function(e) {
               const loginForm = e.target.closest('[action="/account/login"]');
               if(loginForm && !isTrackedLogin) {
-                  const eventData = {
-                    event: self.eventPrefix + 'login'
-                  }
+                  const eventData = { event: self.eventPrefix + 'login' }
                   isTrackedLogin = true;
                   dataLayer.push(eventData);
                   self.eventConsole(self.eventPrefix + 'login', eventData);
               }
             });
           }
-
           if(window.location.href.includes('/account/register')) {
             document.addEventListener('submit', function(e) {
               const registerForm = e.target.closest('[action="/account"]');
               if(registerForm && !isTrackedRegister) {
-                  const eventData = {
-                    event: self.eventPrefix + 'sign_up'
-                  }
-                
+                  const eventData = { event: self.eventPrefix + 'sign_up' }
                   isTrackedRegister = true;
                   dataLayer.push(eventData);
                   self.eventConsole(self.eventPrefix + 'sign_up', eventData);
@@ -1151,16 +839,9 @@ const UDL_SNIPPET_VALUE = `<script>
           }
         }
       } 
-      // end Ultimate_Shopify_DataLayer
-
       document.addEventListener('DOMContentLoaded', function() {
-        try{
-          new Ultimate_Shopify_DataLayer();
-        }catch(error) {
-          console.log(error);
-        }
+        try{ new Ultimate_Shopify_DataLayer(); }catch(error){ console.log(error); }
       });
-    
   })();
 </script>
 `;
@@ -1179,8 +860,6 @@ function gtag() { dataLayer.push(arguments); }
 
 // checkout pages event
 if(/.+\\/checkouts?\\/.*/.test(window.location.href)) {
-
-  // DataLayer Events
   analytics.subscribe('payment_info_submitted', (event) => ecommerceDataLayer('add_payment_info', event));
   analytics.subscribe('checkout_shipping_info_submitted', (event) => ecommerceDataLayer('add_shipping_info', event));
   analytics.subscribe('checkout_completed', (event) => ecommerceDataLayer('purchase', event));
@@ -1272,8 +951,6 @@ async function ecommerceDataLayer(gtm_event_name, event) {
 };`;
 
 // ---------- Injectors ----------
-
-// Build GTM head/body blocks for a given ID
 function buildGTMBlocks(gtmId) {
   const headTag = [
     "<!-- Google Tag Manager -->",
@@ -1306,73 +983,50 @@ function upsertGTMAndRender(src, gtmId) {
   const { headTag, bodyTag } = buildGTMBlocks(gtmId);
   const renderTag = `{% render 'ultimate-datalayer' %}`;
 
-  // Remove old GTM blocks
   const reHeadBlock = /<!--\s*Google Tag Manager\s*-->[\s\S]*?<!--\s*End Google Tag Manager\s*-->/i;
   const reBodyBlock = /<!--\s*Google Tag Manager\s*\(noscript\)\s*-->[\s\S]*?<!--\s*End Google Tag Manager\s*\(noscript\)\s*-->/i;
   src = src.replace(reHeadBlock, "").replace(reBodyBlock, "");
-
-  // Remove any existing snippet render
   src = src.replace(/\{\%\s*render\s+'ultimate-datalayer'\s*\%\}\s*/gi, "");
-
-  // Insert fresh GTM
   src = src.replace(/<head(\b[^>]*)?>/i, (m) => `${m}\n${headTag}\n`);
   src = src.replace(/<body(\b[^>]*)?>/i, (m) => `${m}\n${bodyTag}\n`);
-
-  // Put render right after GTM Head
   src = src.replace(/(<!--\s*End Google Tag Manager\s*-->)/i, `$1\n  ${renderTag}`);
-
-  // Fallback if not inserted
   if (!/render\s+'ultimate-datalayer'/.test(src)) {
     src = src.replace(/<\/head>/i, `  ${renderTag}\n</head>`);
   }
   return src;
 }
 
-// Only add `{% render 'ultimate-datalayer' %}` after GTM head end (or before </head>)
 function insertRenderAfterGTM(src) {
   const renderTag = `{% render 'ultimate-datalayer' %}`;
-
-  // Remove any duplicates
   src = src.replace(/\{\%\s*render\s+'ultimate-datalayer'\s*\%\}\s*/gi, "");
-
-  // After GTM head end marker
   const withAfter = src.replace(/(<!--\s*End Google Tag Manager\s*-->)/i, `$1\n  ${renderTag}`);
   if (withAfter !== src) return withAfter;
-
-  // Fallback before </head>
   return src.replace(/<\/head>/i, `  ${renderTag}\n</head>`);
 }
 
 // ---------- API Endpoints ----------
 
-// 1) Enable GTM → dynamic ID + render right after head GTM (once)
+// 1) Enable GTM
 app.post("/api/gtm/enable", async (req, res) => {
   try {
     const { shop, accessToken, gtmId } = req.body || {};
     assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
     assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
-
     const desiredId = (gtmId || DEFAULT_GTM_ID || "").trim();
     assert(/^GTM-[A-Z0-9_-]+$/i.test(desiredId), "Invalid GTM Container ID");
-
     const themeId = await getMainThemeId(shop, accessToken);
     const themeKey = "layout/theme.liquid";
-
     const asset = await getAsset(shop, accessToken, themeId, themeKey);
     const orig = asset.value || Buffer.from(asset.attachment, "base64").toString("utf8");
-
     const patched = upsertGTMAndRender(orig, desiredId);
-    if (patched !== orig) {
-      await putAsset(shop, accessToken, themeId, themeKey, patched);
-    }
-
+    if (patched !== orig) await putAsset(shop, accessToken, themeId, themeKey, patched);
     res.json({ ok: true, gtmId: desiredId });
   } catch (e) {
     res.status(400).json({ error: String(e.message) });
   }
 });
 
-// 2) Enable DataLayer (upload snippet + render right after GTM head, or before </head>)
+// 2) Enable DataLayer
 app.post("/api/datalayer/enable", async (req, res) => {
   try {
     const { shop, accessToken } = req.body || {};
@@ -1395,10 +1049,7 @@ app.post("/api/datalayer/enable", async (req, res) => {
   }
 });
 
-// =======================
-// =======================
-// /api/pixel/enable  { shop, accessToken, name? }
-// Auto-detects GQL schema (input vs webPixel + type names) and falls back to REST.
+// 3) Enable custom Web Pixel (auto-detect GraphQL schema, fallback to REST)
 app.post("/api/pixel/enable", async (req, res) => {
   const fail = (msg, detail) => res.status(400).json({ error: msg, detail });
 
@@ -1429,10 +1080,7 @@ app.post("/api/pixel/enable", async (req, res) => {
     // ---- Introspection helpers
     const hasType = async (typeName) => {
       try {
-        const d = await gql(
-          `query($n:String!){ __type(name:$n){ name kind } }`,
-          { n: typeName }
-        );
+        const d = await gql(`query($n:String!){ __type(name:$n){ name kind } }`, { n: typeName });
         return !!d?.__type?.name;
       } catch { return false; }
     };
@@ -1458,7 +1106,6 @@ app.post("/api/pixel/enable", async (req, res) => {
     let argCreate = "input", argUpdate = "input";
     let typeCreate = "WebPixelInput", typeUpdate = "WebPixelUpdateInput";
 
-    // Prefer schema data if available
     const createInfo = await argNameOf("webPixelCreate");
     if (createInfo.argName) argCreate = createInfo.argName;
     if (createInfo.typeName) typeCreate = createInfo.typeName;
@@ -1467,7 +1114,6 @@ app.post("/api/pixel/enable", async (req, res) => {
     if (updateInfo.argName) argUpdate = updateInfo.argName;
     if (updateInfo.typeName) typeUpdate = updateInfo.typeName;
 
-    // If the detected type doesn't exist, fall back to common alternates
     const candidates = [];
     const existsCreate = await hasType(typeCreate);
     const existsUpdate = await hasType(typeUpdate);
@@ -1480,22 +1126,16 @@ app.post("/api/pixel/enable", async (req, res) => {
         varUpdate: (js) => ({ id: "", v: { enabled: true, settings: "{}", javascript: js } }),
       });
 
-    // 1) Use detected if types exist
     if (existsCreate && existsUpdate) pushVariant(argCreate, typeCreate, argUpdate, typeUpdate);
-
-    // 2) Known variants
     pushVariant("webPixel", "WebPixelInput", "webPixel", "WebPixelUpdateInput");
     pushVariant("input", "WebPixelInput", "input", "WebPixelUpdateInput");
-    // Some shards expose a single WebPixelInput for both
     pushVariant("webPixel", "WebPixelInput", "webPixel", "WebPixelInput");
 
     const pixelJs = CUSTOM_PIXEL_JS;
 
-    // Try each GraphQL variant
     let lastErr = null;
     for (const v of candidates) {
       try {
-        // CREATE
         const c = await gql(v.create, v.varCreate(pixelJs));
         const ce = c?.webPixelCreate?.userErrors || [];
         const createdId = c?.webPixelCreate?.webPixel?.id;
@@ -1503,12 +1143,10 @@ app.post("/api/pixel/enable", async (req, res) => {
           return res.json({ ok: true, mode: "created", pixel: { id: createdId } });
         }
 
-        // LIST (to update first pixel when create blocked by duplication rules)
         const list = await gql(`query { webPixels(first:50){ nodes{ id } } }`, {});
         const existing = list?.webPixels?.nodes?.[0]?.id;
         if (!existing) throw new Error(ce.length ? JSON.stringify(ce) : "No pixel found to update");
 
-        // UPDATE
         const u = await gql(v.update, { id: existing, ...v.varUpdate(pixelJs) });
         const ue = u?.webPixelUpdate?.userErrors || [];
         const uid = u?.webPixelUpdate?.webPixel?.id;
@@ -1518,11 +1156,10 @@ app.post("/api/pixel/enable", async (req, res) => {
         throw new Error(ue.length ? JSON.stringify(ue) : "Unknown update error");
       } catch (e) {
         lastErr = String(e.message || e);
-        // try next variant
       }
     }
 
-    // --------- REST fallback (older stores / GraphQL disabled shards)
+    // --------- REST fallback
     const probe = await fetch(`${REST}/web_pixels.json?limit=1`, { method: "GET", headers });
     if (probe.status === 404 || probe.status === 405) {
       return fail(
@@ -1559,19 +1196,18 @@ app.post("/api/pixel/enable", async (req, res) => {
   }
 });
 
-// সার্ভার-লেভেলে (শুধু pixel.js এর জন্য) CORS/MIME ঠিক করা ভালো
+// Serve pixel.js with proper headers for copy/use in manual flow
 app.get("/pixel.js", (req, res) => {
   res.setHeader("Content-Type", "text/javascript; charset=utf-8");
-  // ঐচ্ছিক—কঠোর হলে দিন (Shopify storefront থেকে লোড করতে)
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
   res.sendFile(path.join(process.cwd(), "public/pixel.js"));
 });
 
-// বাকি স্ট্যাটিক ফাইল
+// Static files
 app.use(express.static(path.join(process.cwd(), "public")));
 
-// ---------- Simple Embedded UI ----------
+// ---------- Embedded Admin UI ----------
 app.get("/admin/settings", (req, res) => {
   const shop = req.query.shop || process.env.SHOP || "";
   res.type("html").send(`<!doctype html>
@@ -1584,72 +1220,41 @@ app.get("/admin/settings", (req, res) => {
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0b1220;
-    --panel:#0f1629;
-    --panel-2:#121a30;
-    --text:#e7eefc;
-    --muted:#9fb2d1;
-    --brand:#6ea8ff;
-    --brand-2:#7c5cff;
-    --accent:#22c55e;
-    --danger:#ef4444;
-    --border:rgba(255,255,255,.08);
-    --ring:rgba(110,168,255,.35);
-    --shadow:0 8px 30px rgba(0,0,0,.35);
+    --bg:#0b1220; --panel:#0f1629; --panel-2:#121a30; --text:#e7eefc; --muted:#9fb2d1;
+    --brand:#6ea8ff; --brand-2:#7c5cff; --accent:#22c55e; --danger:#ef4444;
+    --border:rgba(255,255,255,.08); --ring:rgba(110,168,255,.35); --shadow:0 8px 30px rgba(0,0,0,.35);
   }
   *{box-sizing:border-box}
-  body{
-    margin:0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
-    color:var(--text); background: radial-gradient(1200px 600px at 20% -20%, #1b2a55 0, transparent 60%), var(--bg);
-  }
-  .topbar{
-    background: linear-gradient(90deg, rgba(110,168,255,.25), rgba(124,92,255,.25));
-    border-bottom:1px solid var(--border);
-    backdrop-filter: blur(6px);
-  }
+  body{ margin:0; font-family: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu;
+    color:var(--text); background: radial-gradient(1200px 600px at 20% -20%, #1b2a55 0, transparent 60%), var(--bg); }
+  .topbar{ background: linear-gradient(90deg, rgba(110,168,255,.25), rgba(124,92,255,.25));
+    border-bottom:1px solid var(--border); backdrop-filter: blur(6px); }
   .topbar-inner{max-width:980px;margin:0 auto;padding:18px 16px;display:flex;align-items:center;gap:12px}
-  .logo{
-    width:36px;height:36px;border-radius:10px;
-    background: linear-gradient(135deg,var(--brand),var(--brand-2));
-    box-shadow: inset 0 0 0 2px rgba(255,255,255,.15);
-  }
+  .logo{ width:36px;height:36px;border-radius:10px; background: linear-gradient(135deg,var(--brand),var(--brand-2));
+    box-shadow: inset 0 0 0 2px rgba(255,255,255,.15); }
   .title{font-weight:800;letter-spacing:.3px;font-size:20px}
   .wrap{max-width:980px;margin:28px auto;padding:0 16px}
   .grid{display:grid;grid-template-columns:1fr;gap:16px}
   @media(min-width:840px){.grid{grid-template-columns:1fr 1fr}}
-  .card{
-    background:linear-gradient(180deg, var(--panel), var(--panel-2));
-    border:1px solid var(--border);
-    border-radius:16px; box-shadow:var(--shadow);
-    padding:22px;
-  }
+  .card{ background:linear-gradient(180deg, var(--panel), var(--panel-2)); border:1px solid var(--border);
+    border-radius:16px; box-shadow:var(--shadow); padding:22px; }
   .card h2{margin:0 0 8px 0;font-size:18px}
   .muted{color:var(--muted);font-size:12px}
   label{display:block;margin:12px 0 6px;font-weight:600}
-  .field{
-    position:relative;
-  }
-  // -----
+  .field{ position:relative; }
   h1, h2, h3, .title {color: var(--text) !important;}
- .card h2{color: var(--text) !important;}
- label{color: var(--text);}
-.btn{color:#0b1220;}
-.btn.secondary{color: var(--text);}
-// -------
+  .card h2{color: var(--text) !important;}
+  label{color: var(--text);}
+  .btn{color:#0b1220;}
+  .btn.secondary{color: var(--text);}
   .field input{
     width:100%; padding:12px 12px 12px 40px; font-size:14px; color:var(--text);
     background:#0b1428; border:1px solid var(--border); border-radius:12px; outline:none;
     transition:border .2s, box-shadow .2s, transform .05s;
   }
-  input{
-    padding: 10px;
-    border-radius: 10px;
-  }
+  input{ padding: 10px; border-radius: 10px; }
   .field input:focus{border-color:var(--brand); box-shadow:0 0 0 4px var(--ring)}
-  .icon{
-    position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:.65; pointer-events:none;
-    font-size:14px
-  }
+  .icon{ position:absolute; left:12px; top:50%; transform:translateY(-50%); opacity:.65; pointer-events:none; font-size:14px }
   .btn{
     appearance:none; border:0; cursor:pointer; font-weight:700; letter-spacing:.2px;
     padding:12px 14px; border-radius:12px; color:#0b1220;
@@ -1659,23 +1264,16 @@ app.get("/admin/settings", (req, res) => {
   }
   .btn:hover{filter:brightness(1.05)}
   .btn:active{transform:translateY(1px)}
-  .btn.secondary{
-    background:transparent; color:var(--text); border:1px solid var(--border);
-    box-shadow:none;
-  }
+  .btn.secondary{ background:transparent; color:var(--text); border:1px solid var(--border); box-shadow:none; }
   .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
-  .toast{
-    margin-top:12px; display:none; padding:12px 14px; border-radius:12px; font-weight:600; font-size:13px;
-    border:1px solid; background:rgba(0,0,0,.25)
-  }
+  .toast{ margin-top:12px; display:none; padding:12px 14px; border-radius:12px; font-weight:600; font-size:13px;
+    border:1px solid; background:rgba(0,0,0,.25) }
   .ok{border-color:rgba(34,197,94,.35); color:#86efac; background:rgba(34,197,94,.08)}
   .err{border-color:rgba(239,68,68,.35); color:#fecaca; background:rgba(239,68,68,.08)}
   .section{margin-top:20px}
   .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
-  .pill{
-    font-size:11px; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.06);
-    border:1px solid var(--border); color:var(--muted)
-  }
+  .pill{ font-size:11px; padding:4px 8px; border-radius:999px; background:rgba(255,255,255,.06);
+    border:1px solid var(--border); color:var(--muted) }
   .two-col{display:grid;grid-template-columns:1fr;gap:12px}
   @media(min-width:700px){.two-col{grid-template-columns:1fr 1fr}}
   .footnote{margin-top:6px;font-size:12px;color:var(--muted)}
@@ -1771,7 +1369,8 @@ app.get("/admin/settings", (req, res) => {
       <div id="ok-px" class="toast ok">Pixel installed/updated.</div>
       <div id="err-px" class="toast err">Failed.</div>
     </div>
-        <!-- Manual fallback: Custom Pixel -->
+
+    <!-- Manual fallback: Custom Pixel -->
     <div class="card section" id="manual-pixel" style="display:none">
       <div class="header">
         <h2>Manual install — Custom Pixel (Customer events)</h2>
@@ -1809,14 +1408,14 @@ app.get("/admin/settings", (req, res) => {
   </div>
 
 <script>
+  // --- Toast helpers (UI feedback) ---
   function toast(id, ok, msg) {
     const el = document.getElementById(id);
     el.innerText = msg || (ok ? 'Done' : 'Failed');
     el.style.display='block';
     setTimeout(()=>el.style.display='none', 3500);
   }
-  function val(id){ return document.getElementById(id).value.trim(); }
-
+  function val(id){ const el=document.getElementById(id); return (el && typeof el.value==='string') ? el.value.trim() : ''; }
   function setLoading(btn, loading=true){
     if(!btn) return;
     if(loading){
@@ -1833,6 +1432,55 @@ app.get("/admin/settings", (req, res) => {
     }
   }
 
+  // --- Manual fallback section refs ---
+  const manualBox = document.getElementById('manual-pixel');
+  const pxArea   = document.getElementById('px-code');
+
+  // Prefill textarea with /pixel.js content so user can Copy immediately
+  (async function preloadPixelCode(){
+    try{
+      const r = await fetch('/pixel.js', { cache:'no-store' });
+      const t = await r.text();
+      if(pxArea) pxArea.value = t || '';
+    }catch(e){
+      if(pxArea && !pxArea.value) {
+        pxArea.value = 'export default (analytics) => {\\n  /* paste your pixel code here */\\n};';
+      }
+    }
+  })();
+
+  // Copy code into clipboard
+  document.getElementById('btn-copy-code')?.addEventListener('click', async () => {
+    try{
+      await navigator.clipboard.writeText(pxArea?.value || '');
+      toast('ok-copy', true, 'Copied!');
+    }catch(e){
+      toast('err-copy', false, 'Copy failed.');
+    }
+  });
+
+  // Open Shopify Admin → Customer events for the current shop
+  document.getElementById('btn-open-cust-events')?.addEventListener('click', () => {
+    const shop = val('shop');
+    if(!shop || !shop.endsWith('.myshopify.com')){
+      alert('Enter a valid shop domain first (your-store.myshopify.com)');
+      return;
+    }
+    const handle = shop.replace('.myshopify.com','');
+    const url = \`https://admin.shopify.com/store/\${encodeURIComponent(handle)}/settings/customer-events\`;
+    window.open(url, '_blank');
+  });
+
+  // Reveal the manual fallback section and scroll to it
+  function showManualFallback() {
+    if(manualBox) manualBox.style.display = 'block';
+    if(!pxArea?.value) {
+      fetch('/pixel.js').then(r=>r.text()).then(t => { if(pxArea) pxArea.value = t; }).catch(()=>{});
+    }
+    manualBox?.scrollIntoView({behavior:'smooth', block:'start'});
+  }
+
+  // Buttons: GTM
   document.getElementById('btn-gtm').addEventListener('click', async (e) => {
     const btn=e.currentTarget; setLoading(btn,true);
     const payload = { shop: val('shop'), accessToken: val('tok'), gtmId: val('gtm') };
@@ -1845,12 +1493,14 @@ app.get("/admin/settings", (req, res) => {
     finally{ setLoading(btn,false); }
   });
 
+  // Buttons: Tag Assistant
   document.getElementById('btn-preview-gtm').addEventListener('click', () => {
     const id = val('gtm') || '${process.env.GTM_DEFAULT_ID || ""}';
     if(!/^GTM-[A-Z0-9_-]+$/i.test(id)){ alert('Enter a valid GTM Container ID'); return; }
     window.open('https://tagassistant.google.com/?utm_source=analyticsgtm#/?mode=PREVIEW&url='+encodeURIComponent(location.origin)+'&id='+encodeURIComponent(id), '_blank');
   });
 
+  // Buttons: DataLayer
   document.getElementById('btn-dl').addEventListener('click', async (e) => {
     const btn=e.currentTarget; setLoading(btn,true);
     const payload = { shop: val('shop'), accessToken: val('tok') };
@@ -1863,94 +1513,40 @@ app.get("/admin/settings", (req, res) => {
     finally{ setLoading(btn,false); }
   });
 
+  // Buttons: Web Pixel (auto shows manual fallback if endpoints unavailable)
   document.getElementById('btn-pixel').addEventListener('click', async (e) => {
     const btn=e.currentTarget; setLoading(btn,true);
-    const payload = { shop: val('shop'), accessToken: val('tok'), name: val('pxname') };
+    const payload = { shop: val('shop'), accessToken: val('tok'), name: document.getElementById('pxname')?.value?.trim() || 'analyticsgtm Pixel' };
     try{
       const r = await fetch('/api/pixel/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const j = await r.json().catch(()=>({}));
-      if(!r.ok || j.error) throw new Error(j.error || 'error');
-      toast('ok-px', true, 'Pixel installed/updated.');
-    }catch(e){ toast('err-px', false, 'Error: '+e.message); }
-    finally{ setLoading(btn,false); }
-  });
-  <script>
-  // --- Manual section helpers ---
-  const manualBox = document.getElementById('manual-pixel');
-  const pxArea   = document.getElementById('px-code');
-
-  // পেজ লোড হলে /pixel.js থেকে কোড এনে textarea-তে বসাই
-  (async function preloadPixelCode(){
-    try{
-      const r = await fetch('/pixel.js', { cache:'no-store' });
-      const t = await r.text();
-      if(pxArea) pxArea.value = t || '';
-    }catch(e){
-      // fallback: যদি কোন কারণে fetch না হয়
-      if(pxArea && !pxArea.value) {
-        pxArea.value = `export default (analytics) => {\n  /* paste your pixel code here */\n};`;
-      }
-    }
-  })();
-
-  // Copy button
-  document.getElementById('btn-copy-code')?.addEventListener('click', async () => {
-    try{
-      await navigator.clipboard.writeText(pxArea.value || '');
-      toast('ok-copy', true, 'Copied!');
-    }catch(e){
-      toast('err-copy', false, 'Copy failed.');
-    }
-  });
-
-  // Open Customer events (admin) – shop input থেকে স্টোর হ্যান্ডেল বের করি
-  document.getElementById('btn-open-cust-events')?.addEventListener('click', () => {
-    const shop = val('shop');
-    if(!shop || !shop.endsWith('.myshopify.com')){
-      alert('Enter a valid shop domain first (your-store.myshopify.com)');
-      return;
-    }
-    const handle = shop.replace('.myshopify.com','');
-    const url = `https://admin.shopify.com/store/${encodeURIComponent(handle)}/settings/customer-events`;
-    window.open(url, '_blank');
-  });
-
-  // যখন API দিয়ে pixel enable ব্যর্থ হয় (REST/GQL unavailable),
-  // তখন manual fallback সেকশন দেখাই
-  function showManualFallback() {
-    if(manualBox) manualBox.style.display = 'block';
-    // নিশ্চিত করি যে কোডটা লোড হয়ে গেছে (preloadPixelCode আগেই রান হয়)
-    if(!pxArea?.value) {
-      fetch('/pixel.js').then(r=>r.text()).then(t => { if(pxArea) pxArea.value = t; }).catch(()=>{});
-    }
-    // ভিউতে স্ক্রল করে এনে দেই
-    manualBox?.scrollIntoView({behavior:'smooth', block:'start'});
-  }
-
-  // আপনার বিদ্যমান btn-pixel হ্যান্ডলারটাকে একটু আপডেট করি:
-  (function patchPixelButton(){
-    const btn = document.getElementById('btn-pixel');
-    if(!btn) return;
-    const origHandler = btn.onclick; // just in case
-
-    btn.addEventListener('click', async (e) => {
-      // উপরের কোডে already একটা listener আছে—তাই আমরা override করব না,
-      // বরং window.fetch wrapper ব্যবহার করে error ধরব। তবে সহজ পথে:
-      // নিচে setTimeout দিয়ে শেষ হওয়া রেসপন্স পড়ে DOM থেকে error toast চেক করি।
-      setTimeout(() => {
-        const err = document.getElementById('err-px');
-        if(err && err.style.display === 'block') {
-          // error টেক্সটে আমাদের সেই মেসেজটা থাকলে manual দেখাই
-          if(err.innerText.includes('Custom Web Pixel endpoints not available') ||
-             err.innerText.includes('GraphQL') || err.innerText.includes('Unauthorized')) {
-            showManualFallback();
-          }
+      if(!r.ok || j.error) {
+        // Show error toast
+        toast('err-px', false, 'Error: ' + (j.error || 'Unknown'));
+        // If the error implies missing endpoints/scopes, reveal manual flow
+        const msg = (j.error || '').toLowerCase();
+        if(
+          msg.includes('custom web pixel endpoints not available') ||
+          msg.includes('graphql') ||
+          msg.includes('unauthorized') ||
+          msg.includes('forbidden') ||
+          msg.includes('not implemented') ||
+          msg.includes('missingrequiredarguments')
+        ){
+          showManualFallback();
         }
-      }, 500);
-    });
-  })();
-</script>
-
+        return;
+      }
+      // Success → hide manual (if previously opened)
+      toast('ok-px', true, 'Pixel installed/updated.');
+      if(manualBox) manualBox.style.display = 'none';
+    }catch(e){
+      toast('err-px', false, 'Error: '+e.message);
+      showManualFallback();
+    } finally{
+      setLoading(btn,false);
+    }
+  });
 </script>
 </body>
 </html>`);
@@ -1963,4 +1559,3 @@ app.get("/", (_req, res) => {
 });
 
 app.listen(PORT, () => console.log(`analyticsgtm running on :${PORT}`));
-
