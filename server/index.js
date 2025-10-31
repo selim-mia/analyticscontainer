@@ -1536,21 +1536,26 @@ app.get("/admin/settings", (req, res) => {
     <div id="err-dl" class="toast err">Failed.</div>
   </div>
 
+    <!-- 3A) Manual install — copy from pixel.js -->
   <div class="card">
-    <h2 class="section-title">3) Enable custom Web Pixel (Checkout)</h2>
-    <p class="muted">Installs/updates a customer web pixel with your checkout code.</p>
-    <div class="row">
-      <div>
-        <label>Pixel name</label>
-        <input id="pxname" type="text" value="analyticsgtm Pixel">
-      </div>
+    <h2 class="section-title">Manual install — Custom Pixel (Customer events)</h2>
+    <p class="muted">If REST/GraphQL blocked, install manually from your Admin.</p>
+    <ol style="margin:0 0 12px 18px; line-height:1.6">
+      <li>Go to <b>Settings → Customer events</b></li>
+      <li>Click <b>Add custom pixel</b></li>
+      <li>Click <b>Copy custom pixel code</b> below and <b>paste</b> it into the editor</li>
+      <li><b>Save</b> → <b>Connect</b></li>
+    </ol>
+
+    <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn" id="btn-copy-pixel">Copy custom pixel code</button>
+      <button class="btn" id="btn-open-cust-events">Open Customer events</button>
     </div>
-    <div style="display:flex;gap:12px;margin-top:14px">
-      <button class="btn" id="btn-pixel">Enable custom Web Pixel</button>
-    </div>
-    <div id="ok-px" class="toast ok">Pixel installed/updated.</div>
-    <div id="err-px" class="toast err">Failed.</div>
+
+    <div id="ok-copy" class="toast ok">Copied!</div>
+    <div id="err-copy" class="toast err">Copy failed.</div>
   </div>
+
 </div>
 
 <script>
@@ -1591,6 +1596,7 @@ document.getElementById('btn-pixel').addEventListener('click', async () => {
     toast('ok-px', true, 'Pixel installed/updated.');
   } catch(e) { toast('err-px', false, 'Error: ' + e.message); }
 });
+
 </script>
 </html>`);
 });
