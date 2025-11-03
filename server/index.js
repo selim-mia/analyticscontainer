@@ -1361,7 +1361,7 @@ app.get("/admin/settings", (req, res) => {
 
   <div class="card">
     <h2 class="section-title">3) Manual install — Custom Pixel (Customer events)</h2>
-    <p class="muted">If REST/GraphQL blocked, install manually from your Admin.</p>
+    <p class="muted">To Enable Checkout Event.</p>
     <ol style="margin:0 0 12px 18px; line-height:1.6">
       <li>Go to <b>Settings → Customer events</b></li>
       <li>Click <b>Add custom pixel</b></li>
