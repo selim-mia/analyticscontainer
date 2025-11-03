@@ -1449,7 +1449,7 @@ if (openBtn) {
     var shop = (shopEl ? shopEl.value : '').trim();
     if (!shop) { alert('Enter your shop domain first (e.g., your-store.myshopify.com)'); return; }
     var url = 'https://' + shop + '/admin/settings/customer_events';
-    var win = window.open(url, '_blank', 'noopener,noreferrer');
+    var win = window.open(url, '_blank');
     if (!win) window.location.href = url;
   });
 }
