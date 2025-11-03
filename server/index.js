@@ -88,13 +88,11 @@ async function putAsset(shop, token, themeId, key, value) {
 /* -----------------------------------------
    1) UDL snippet as Liquid (raw template)
    ----------------------------------------- */
-const UDL_SNIPPET_VALUE = raw`
-<script>
+const UDL_SNIPPET_VALUE = raw`<script>
 /**
-  * Author: AnalyticsGTM
-  * Email: analyticsgtm@gmail.com  * 
-  * Version: 1.1
-  * Last Update: 03/11/2025
+  * Author: analyticsgtm
+  * Email: analyticsgtm@gmail.com 
+  * Last Update: 27 September 2025
   */
   
   (function() {
@@ -105,13 +103,18 @@ const UDL_SNIPPET_VALUE = raw`
           // use a prefix of events name
           this.eventPrefix = '';
 
-          // Keep the value false to get non-formatted product ID
+          //Keep the value false to get non-formatted product ID
           this.formattedItemId = true; 
 
           // data schema
           this.dataSchema = {
-            ecommerce: { show: true },
-            dynamicRemarketing: { show: false, business_vertical: 'retail' }
+            ecommerce: {
+                show: true
+            },
+            dynamicRemarketing: {
+                show: false,
+                business_vertical: 'retail'
+            }
           }
 
           // add to wishlist selectors
@@ -129,8 +132,11 @@ const UDL_SNIPPET_VALUE = raw`
           }
 
           // mini cart button selector
-          this.miniCartButton = ['a[href="/cart"]'];
+          this.miniCartButton = [
+            'a[href="/cart"]', 
+          ];
           this.miniCartAppersOn = 'click';
+
 
           // begin checkout buttons/links selectors
           this.beginCheckoutButtons = [
@@ -141,52 +147,52 @@ const UDL_SNIPPET_VALUE = raw`
           ];
 
           // direct checkout button selector
-          this.shopifyDirectCheckoutButton = ['.shopify-payment-button']
+          this.shopifyDirectCheckoutButton = [
+            '.shopify-payment-button'
+          ]
 
-          // Keep true if Add to Cart redirects to the cart page
+          //Keep the value true if Add to Cart redirects to the cart page
           this.isAddToCartRedirect = false;
           
-          // keep false if cart items increment/decrement/remove refresh page 
+          // keep the value false if cart items increment/decrement/remove refresh page 
           this.isAjaxCartIncrementDecrement = true;
+          
 
           // Caution: Do not modify anything below this line, as it may result in it not functioning correctly.
-          this.cart = {% if cart %}{{ cart | json }}{% else %}null{% endif %};
-          this.countryCode = "{{ localization.country.iso_code | default: 'US' }}";
+          this.cart = {{ cart | json }}
+          this.countryCode = "{{ shop.address.country_code }}";
           this.storeURL = "{{ shop.secure_url }}";
-          try { localStorage.setItem('shopCountryCode', this.countryCode); } catch(e) {}
-          
-          if(!this.cart || !this.cart.items){
-            try {
-              fetch("/cart.js")
-                .then(r => r.json())
-                .then(c => { this.cart = c; })
-                .catch(() => { this.cart = { currency: {{ shop.currency | json }}, items: [] }; });
-            } catch(e) { this.cart = { currency: {{ shop.currency | json }}, items: [] }; }
-          }
-
+          localStorage.setItem('shopCountryCode', this.countryCode);
           this.collectData(); 
           this.itemsList = [];
         }
 
         updateCart() {
-          fetch("/cart.js").then(r => r.json()).then(d => { this.cart = d; }).catch(()=>{});
+          fetch("/cart.js")
+          .then((response) => response.json())
+          .then((data) => {
+            this.cart = data;
+          });
         }
 
-        debounce(delay) {         
+       debounce(delay) {         
           let timeoutId;
-          return function(fn) {
-            const ctx = this, args = arguments;
+          return function(func) {
+            const context = this;
+            const args = arguments;
+            
             clearTimeout(timeoutId);
-            timeoutId = setTimeout(function(){ fn.apply(ctx, args); }, delay);
+            
+            timeoutId = setTimeout(function() {
+              func.apply(context, args);
+            }, delay);
           };
         }
 
         eventConsole(eventName, eventData) {
-          try {
-            const css1 = 'background: red; color: #fff; font-size: normal; border-radius: 3px 0 0 3px; padding: 3px 4px;';
-            const css2 = 'background-color: blue; color: #fff; font-size: normal; border-radius: 0 3px 3px 0; padding: 3px 4px;';
-            console.log('%cGTM DataLayer Event:%c' + eventName, css1, css2, eventData);
-          } catch(e) {}
+          const css1 = 'background: red; color: #fff; font-size: normal; border-radius: 3px 0 0 3px; padding: 3px 4px;';
+          const css2 = 'background-color: blue; color: #fff; font-size: normal; border-radius: 0 3px 3px 0; padding: 3px 4px;';
+          console.log('%cGTM DataLayer Event:%c' + eventName, css1, css2, eventData);
         }
 
         collectData() { 
@@ -196,9 +202,17 @@ const UDL_SNIPPET_VALUE = raw`
             this.miniCartData();
             this.beginCheckoutData();
   
-            {% if template contains 'cart' %} this.viewCartPageData(); {% endif %}
-            {% if template contains 'product' %} this.productSinglePage(); {% endif %}
-            {% if template contains 'collection' %} this.collectionsPageData(); {% endif %}
+            {% if template contains 'cart' %}
+              this.viewCartPageData();
+            {% endif %}
+  
+            {% if template contains 'product' %}
+              this.productSinglePage();
+            {% endif %}
+  
+            {% if template contains 'collection' %}
+              this.collectionsPageData();
+            {% endif %}
             
             this.addToWishListData();
             this.quickViewData();
@@ -209,7 +223,7 @@ const UDL_SNIPPET_VALUE = raw`
             this.loginRegisterData();
         }        
 
-        // logged-in customer data 
+        //logged-in customer data 
         customerData() {
             const currentUser = {};
             {% if customer %}
@@ -219,6 +233,7 @@ const UDL_SNIPPET_VALUE = raw`
               currentUser.full_name = "{{ customer.name }}";
               currentUser.email = "{{ customer.email }}";
               currentUser.phone = "{{ customer.default_address.phone }}";
+          
               {% if customer.default_address %}
                 currentUser.address = {
                   address_summary: "{{ customer.default_address.summary }}",
@@ -235,80 +250,93 @@ const UDL_SNIPPET_VALUE = raw`
               {% endif %}
             {% endif %}
 
-            {% if customer and customer.email %}
-              currentUser.hash_email = "{{ customer.email | strip | downcase | sha256 }}"
-            {% endif %}
-            {% if customer and customer.phone %}
-              currentUser.hash_phone = "{{ customer.phone | strip | sha256 }}"
-            {% endif %}
+            if (currentUser.email) {
+              currentUser.hash_email = "{{ customer.email | sha256 }}"
+            }
+
+            if (currentUser.phone) {
+              currentUser.hash_phone = "{{ customer.phone | sha256 }}"
+            }
 
             window.dataLayer = window.dataLayer || [];
-            dataLayer.push({ customer: currentUser });
+            dataLayer.push({
+              customer: currentUser
+            });
         }
 
         // add_to_cart, remove_from_cart, search
         ajaxRequestData() {
           const self = this;
           
+          // handle non-ajax add to cart
           if(this.isAddToCartRedirect) {
             document.addEventListener('submit', function(event) {
               const addToCartForm = event.target.closest('form[action="/cart/add"]');
               if(addToCartForm) {
                 event.preventDefault();
+                
                 const formData = new FormData(addToCartForm);
-                fetch((window.Shopify && Shopify.routes ? Shopify.routes.root : '/') + 'cart/add.js', {
+            
+                fetch(window.Shopify.routes.root + 'cart/add.js', {
                   method: 'POST',
                   body: formData
                 })
-                .then(() => { window.location.href = "{{ routes.cart_url }}"; })
-                .catch((error) => { console.error('Error:', error); });
+                .then(response => {
+                    window.location.href = "{{ routes.cart_url }}";
+                })
+                .catch((error) => {
+                  console.error('Error:', error);
+                });
               }
             });
           }
           
-          // fetch interception
+          // fetch
           let originalFetch = window.fetch;
           let debounce = this.debounce(800);
           
           window.fetch = function () {
             return originalFetch.apply(this, arguments).then((response) => {
-              if (response && response.ok) {
+              if (response.ok) {
                 let cloneResponse = response.clone();
-                let requestURL = (arguments[0] && (arguments[0].url || arguments[0])) || '';
-
-                if(typeof requestURL === 'string' && /.*\/search\/?.*\?.*q=.+/.test(requestURL) && !requestURL.includes('&requestFrom=uldt')) {   
-                  const queryString = (requestURL.split('?')[1] || '');
+                let requestURL = arguments[0]['url'] || arguments[0];
+                
+                if(typeof requestURL === 'string' && /.*\\/search\\/?\\.*/.test(requestURL) && requestURL.includes('q=') && !requestURL.includes('&requestFrom=uldt')) {   
+                  const queryString = requestURL.split('?')[1];
                   const urlParams = new URLSearchParams(queryString);
                   const search_term = urlParams.get("q");
 
                   debounce(function() {
-                    fetch(self.storeURL + '/search/suggest.json?q=' + encodeURIComponent(search_term) + '&resources[type]=product&requestFrom=uldt')
+                    fetch(\`\${self.storeURL}/search/suggest.json?q=\${search_term}&resources[type]=product&requestFrom=uldt\`)
                       .then(res => res.json())
                       .then(function(data) {
-                            const products = (((data||{}).resources||{}).results||{}).products || [];
+                            const products = data.resources.results.products;
                             if(products.length) {
                               const fetchRequests = products.map(product =>
-                                fetch(self.storeURL + '/' + (product.url||'').split('?')[0] + '.js')
-                                  .then(r => r.json())
-                                  .catch(() => null)
+                                fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`)
+                                  .then(response => response.json())
+                                  .catch(error => console.error('Error fetching:', error))
                               );
 
                               Promise.all(fetchRequests)
                                 .then(products => {
-                                    const items = (products||[]).filter(Boolean).map((p) => ({
-                                      product_id: p.id,
-                                      product_title: p.title,
-                                      variant_id: p.variants?.[0]?.id,
-                                      variant_title: p.variants?.[0]?.title,
-                                      vendor: p.vendor,
-                                      total_discount: 0,
-                                      final_price: p.price_min,
-                                      product_type: p.type, 
-                                      quantity: 1
-                                    }));
+                                    const items = products.map((product) => {
+                                      return {
+                                        product_id: product.id,
+                                        product_title: product.title,
+                                        variant_id: product.variants[0].id,
+                                        variant_title: product.variants[0].title,
+                                        vendor: product.vendor,
+                                        total_discount: 0,
+                                        final_price: product.price_min,
+                                        product_type: product.type, 
+                                        quantity: 1
+                                      }
+                                    });
+
                                     self.ecommerceDataLayer('search', {search_term, items});
                                 })
-                            } else {
+                            }else {
                               self.ecommerceDataLayer('search', {search_term, items: []});
                             }
                       });
@@ -316,46 +344,55 @@ const UDL_SNIPPET_VALUE = raw`
                 }
                 else if (typeof requestURL === 'string' && requestURL.includes("/cart/add")) {
                   cloneResponse.text().then((text) => {
-                    let data = {};
-                    try { data = JSON.parse(text); } catch(e) {}
+                    let data = JSON.parse(text);
+
                     if(data.items && Array.isArray(data.items)) {
                       data.items.forEach(function(item) {
                          self.ecommerceDataLayer('add_to_cart', {items: [item]});
                       })
-                    } else if (data) {
+                    } else {
                       self.ecommerceDataLayer('add_to_cart', {items: [data]});
                     }
                     self.updateCart();
-                  }).catch(()=>{});
-                } else if(typeof requestURL === 'string' && (requestURL.includes("/cart/change") || requestURL.includes("/cart/update"))) {
-                  cloneResponse.text().then((text) => {
-                    let newCart = {};
-                    try { newCart = JSON.parse(text); } catch(e) {}
-                    let newCartItems = (newCart && newCart.items) || [];
-                    let oldCartItems = (self.cart && self.cart.items) || [];
+                  });
+                }else if(typeof requestURL === 'string' && (requestURL.includes("/cart/change") || requestURL.includes("/cart/update"))) {
+                  
+                   cloneResponse.text().then((text) => {
+                     
+                    let newCart = JSON.parse(text);
+                    let newCartItems = newCart.items;
+                    let oldCartItems = self.cart.items;
 
                     for(let i = 0; i < oldCartItems.length; i++) {
                       let item = oldCartItems[i];
-                      let newItem = newCartItems.find(n => n.id === item.id);
+                      let newItem = newCartItems.find(newItems => newItems.id === item.id);
+
 
                       if(newItem) {
+
                         if(newItem.quantity > item.quantity) {
+                          // cart item increment
                           let quantity = (newItem.quantity - item.quantity);
                           let updatedItem = {...item, quantity}
                           self.ecommerceDataLayer('add_to_cart', {items: [updatedItem]});
                           self.updateCart(); 
-                        } else if(newItem.quantity < item.quantity) {
+
+                        }else if(newItem.quantity < item.quantity) {
+                          // cart item decrement
                           let quantity = (item.quantity - newItem.quantity);
                           let updatedItem = {...item, quantity}
                           self.ecommerceDataLayer('remove_from_cart', {items: [updatedItem]});
                           self.updateCart(); 
                         }
-                      } else {
+                        
+
+                      }else {
                         self.ecommerceDataLayer('remove_from_cart', {items: [item]});
                         self.updateCart(); 
                       }
                     }
-                  }).catch(()=>{});
+                     
+                  });
                 }
               }
               return response;
@@ -363,153 +400,192 @@ const UDL_SNIPPET_VALUE = raw`
           }
           // end fetch 
 
-          // xhr interception
-          var OrigXHR = XMLHttpRequest;
+
+          //xhr
+          var origXMLHttpRequest = XMLHttpRequest;
           XMLHttpRequest = function() {
             var requestURL;
-            var xhr = new OrigXHR();
+    
+            var xhr = new origXMLHttpRequest();
             var origOpen = xhr.open;
             var origSend = xhr.send;
             
-            xhr.open = function(method, url) { requestURL = url; return origOpen.apply(this, arguments); };
-            xhr.send = function() {
-              if (typeof requestURL === 'string' && (requestURL.includes("/cart/add") || requestURL.includes("/cart/change") || /.*\/search\/?.*\?.*q=.+/.test(requestURL))) {
-                xhr.addEventListener('load', function() {
-                  if (xhr.readyState === 4 && xhr.status >= 200 && xhr.status < 400) { 
-                    try {
-                      if(/.*\/search\/?.*\?.*q=.+/.test(requestURL) && !requestURL.includes('&requestFrom=uldt')) {
-                        const queryString = (requestURL.split('?')[1] || '');
-                        const urlParams = new URLSearchParams(queryString);
-                        const search_term = urlParams.get("q");
-
-                        const debounce = self.debounce(800);
-                        debounce(function() {
-                          fetch(self.storeURL + '/search/suggest.json?q=' + encodeURIComponent(search_term) + '&resources[type]=product&requestFrom=uldt')
-                            .then(res => res.json())
-                            .then(function(data) {
-                              const products = (((data||{}).resources||{}).results||{}).products || [];
-                              if(products.length) {
-                                const fetchRequests = products.map(product =>
-                                  fetch(self.storeURL + '/' + (product.url||'').split('?')[0] + '.js')
-                                    .then(r => r.json())
-                                    .catch(() => null)
-                                );
-                                Promise.all(fetchRequests).then(products => {
-                                  const items = (products||[]).filter(Boolean).map((p) => ({
-                                    product_id: p.id,
-                                    product_title: p.title,
-                                    variant_id: p.variants?.[0]?.id,
-                                    variant_title: p.variants?.[0]?.title,
-                                    vendor: p.vendor,
-                                    total_discount: 0,
-                                    final_price: p.price_min,
-                                    product_type: p.type,
-                                    quantity: 1
-                                  }));
-                                  self.ecommerceDataLayer('search', {search_term, items});
-                                });
-                              } else {
-                                self.ecommerceDataLayer('search', {search_term, items: []});
-                              }
-                            });
-                        });
-                      } else if(requestURL.includes("/cart/add")) {
-                        let data = {};
-                        try { data = JSON.parse(xhr.responseText); } catch(e) {}
-                        if(data.items && Array.isArray(data.items)) {
-                          data.items.forEach(function(item) {
-                            self.ecommerceDataLayer('add_to_cart', {items: [item]});
-                          })
-                        } else if (data) {
-                          self.ecommerceDataLayer('add_to_cart', {items: [data]});
-                        }
-                        self.updateCart();
-                      } else if(requestURL.includes("/cart/change")) {
-                        let newCart = {};
-                        try { newCart = JSON.parse(xhr.responseText); } catch(e) {}
-                        const newItems = (newCart && newCart.items) || [];
-                        let oldItems = (self.cart && self.cart.items) || [];
-                        for(let i = 0; i < oldItems.length; i++) {
-                          let item = oldItems[i];
-                          let nxt = newItems.find(n => n.id === item.id);
-                          if(nxt) {
-                            if(nxt.quantity > item.quantity) {
-                              let quantity = (nxt.quantity - item.quantity);
-                              self.ecommerceDataLayer('add_to_cart', {items: [{...item, quantity}]});
-                              self.updateCart();
-                            } else if(nxt.quantity < item.quantity) {
-                              let quantity = (item.quantity - nxt.quantity);
-                              self.ecommerceDataLayer('remove_from_cart', {items: [{...item, quantity}]});
-                              self.updateCart();
-                            }
-                          } else {
-                            self.ecommerceDataLayer('remove_from_cart', {items: [item]});
-                            self.updateCart();
-                          }
-                        }
-                      }
-                    } catch(e) {}
-                  }
-                });
-              }
-              return origSend.apply(this, arguments);
+            // Override the \`open\` function.
+            xhr.open = function(method, url) {
+                requestURL = url;
+                return origOpen.apply(this, arguments);
             };
+    
+    
+            xhr.send = function() {
+    
+                // Only proceed if the request URL matches what we're looking for.
+                if (typeof requestURL === 'string' && (requestURL.includes("/cart/add") || requestURL.includes("/cart/change") || /.*\\/search\\/?\\.*/.test(requestURL) && requestURL.includes('q='))) {
+        
+                    xhr.addEventListener('load', function() {
+                        if (xhr.readyState === 4) {
+                            if (xhr.status >= 200 && xhr.status < 400) { 
+
+                              if(typeof requestURL === 'string' && /.*\\/search\\/?\\.*/.test(requestURL) && requestURL.includes('q=') && !requestURL.includes('&requestFrom=uldt')) {
+                                const queryString = requestURL.split('?')[1];
+                                const urlParams = new URLSearchParams(queryString);
+                                const search_term = urlParams.get("q");
+
+                                debounce(function() {
+                                    fetch(\`\${self.storeURL}/search/suggest.json?q=\${search_term}&resources[type]=product&requestFrom=uldt\`)
+                                      .then(res => res.json())
+                                      .then(function(data) {
+                                            const products = data.resources.results.products;
+                                            if(products.length) {
+                                              const fetchRequests = products.map(product =>
+                                                fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`)
+                                                  .then(response => response.json())
+                                                  .catch(error => console.error('Error fetching:', error))
+                                              );
+                
+                                              Promise.all(fetchRequests)
+                                                .then(products => {
+                                                    const items = products.map((product) => {
+                                                      return {
+                                                        product_id: product.id,
+                                                        product_title: product.title,
+                                                        variant_id: product.variants[0].id,
+                                                        variant_title: product.variants[0].title,
+                                                        vendor: product.vendor,
+                                                        total_discount: 0,
+                                                        final_price: product.price_min,
+                                                        product_type: product.type, 
+                                                        quantity: 1
+                                                      }
+                                                    });
+                
+                                                    self.ecommerceDataLayer('search', {search_term, items});
+                                                })
+                                            }else {
+                                              self.ecommerceDataLayer('search', {search_term, items: []});
+                                            }
+                                      });
+                                  });
+
+                              }
+
+                              else if(typeof requestURL === 'string' && requestURL.includes("/cart/add")) {
+                                  const data = JSON.parse(xhr.responseText);
+
+                                  if(data.items && Array.isArray(data.items)) {
+                                    data.items.forEach(function(item) {
+                                        self.ecommerceDataLayer('add_to_cart', {items: [item]});
+                                      })
+                                  } else {
+                                    self.ecommerceDataLayer('add_to_cart', {items: [data]});
+                                  }
+                                  self.updateCart();
+                                 
+                               }else if(typeof requestURL === 'string' && requestURL.includes("/cart/change")) {
+                                 
+                                  const newCart = JSON.parse(xhr.responseText);
+                                  const newCartItems = newCart.items;
+                                  let oldCartItems = self.cart.items;
+              
+                                  for(let i = 0; i < oldCartItems.length; i++) {
+                                    let item = oldCartItems[i];
+                                    let newItem = newCartItems.find(newItems => newItems.id === item.id);
+              
+              
+                                    if(newItem) {
+                                      if(newItem.quantity > item.quantity) {
+                                        // cart item increment
+                                        let quantity = (newItem.quantity - item.quantity);
+                                        let updatedItem = {...item, quantity}
+                                        self.ecommerceDataLayer('add_to_cart', {items: [updatedItem]});
+                                        self.updateCart(); 
+              
+                                      }else if(newItem.quantity < item.quantity) {
+                                        // cart item decrement
+                                        let quantity = (item.quantity - newItem.quantity);
+                                        let updatedItem = {...item, quantity}
+                                        self.ecommerceDataLayer('remove_from_cart', {items: [updatedItem]});
+                                        self.updateCart(); 
+                                      }
+                                      
+              
+                                    }else {
+                                      self.ecommerceDataLayer('remove_from_cart', {items: [item]});
+                                      self.updateCart(); 
+                                    }
+                                  }
+                               }          
+                            }
+                        }
+                    });
+                }
+    
+                return origSend.apply(this, arguments);
+            };
+    
             return xhr;
           }; 
-          // end xhr
+          //end xhr
         }
 
-        // search page
+        // search event from search page
         searchPageData() {
           const self = this;
           let pageUrl = window.location.href;
-          if(/.+\/search\?.*\&?q=.+/.test(pageUrl)) {   
-            const queryString = pageUrl.split('?')[1] || '';
+          
+          if(/.+\\/search\\?.*\\&?q=.+/.test(pageUrl)) {   
+            const queryString = pageUrl.split('?')[1];
             const urlParams = new URLSearchParams(queryString);
             const search_term = urlParams.get("q");
                 
-            fetch("{{ shop.secure_url }}/search/suggest.json?q=" + encodeURIComponent(search_term) + "&resources[type]=product&requestFrom=uldt")
-              .then(res => res.json())
-              .then(function(data) {
-                const products = (((data||{}).resources||{}).results||{}).products || [];
-                if(products.length) {
-                  const fetchRequests = products.map(product =>
-                    fetch(self.storeURL + '/' + (product.url||'').split('?')[0] + '.js')
-                      .then(r => r.json())
-                      .catch(() => null)
-                  );
-                  Promise.all(fetchRequests).then(products => {
-                    const items = (products||[]).filter(Boolean).map((p) => ({
-                      product_id: p.id,
-                      product_title: p.title,
-                      variant_id: p.variants?.[0]?.id,
-                      variant_title: p.variants?.[0]?.title,
-                      vendor: p.vendor,
-                      total_discount: 0,
-                      final_price: p.price_min,
-                      product_type: p.type, 
-                      quantity: 1
-                    }));
-                    self.ecommerceDataLayer('search', {search_term, items});
-                  });
-                } else {
-                  self.ecommerceDataLayer('search', {search_term, items: []});
-                }
-              });
+            fetch(\`{{ shop.secure_url }}/search/suggest.json?q=\${search_term}&resources[type]=product&requestFrom=uldt\`)
+            .then(res => res.json())
+            .then(function(data) {
+                  const products = data.resources.results.products;
+                  if(products.length) {
+                    const fetchRequests = products.map(product =>
+                      fetch(\`\${self.storeURL}/\${product.url.split('?')[0]}.js\`)
+                        .then(response => response.json())
+                        .catch(error => console.error('Error fetching:', error))
+                    );
+                    Promise.all(fetchRequests)
+                    .then(products => {
+                        const items = products.map((product) => {
+                            return {
+                            product_id: product.id,
+                            product_title: product.title,
+                            variant_id: product.variants[0].id,
+                            variant_title: product.variants[0].title,
+                            vendor: product.vendor,
+                            total_discount: 0,
+                            final_price: product.price_min,
+                            product_type: product.type, 
+                            quantity: 1
+                            }
+                        });
+
+                        self.ecommerceDataLayer('search', {search_term, items});
+                    });
+                  }else {
+                    self.ecommerceDataLayer('search', {search_term, items: []});
+                  }
+            });
           }
         }
 
-        // view_cart from mini cart
+        // view_cart
         miniCartData() {
           if(this.miniCartButton.length) {
             let self = this;
-            if(this.miniCartAppersOn === 'hover') this.miniCartAppersOn = 'mouseenter';
+            if(this.miniCartAppersOn === 'hover') {
+              this.miniCartAppersOn = 'mouseenter';
+            }
             this.miniCartButton.forEach((selector) => {
               let miniCartButtons = document.querySelectorAll(selector);
-              miniCartButtons.forEach((el) => {
-                el.addEventListener(self.miniCartAppersOn, () => {
-                  self.ecommerceDataLayer('view_cart', self.cart || { currency: {{ shop.currency | json }}, items: [] });
-                });
+              miniCartButtons.forEach((miniCartButton) => {
+                  miniCartButton.addEventListener(self.miniCartAppersOn, () => {
+                    self.ecommerceDataLayer('view_cart', self.cart);
+                  });
               })
             });
           }
@@ -520,31 +596,43 @@ const UDL_SNIPPET_VALUE = raw`
           let self = this;
           document.addEventListener('pointerdown', (event) => {
             let targetElement = event.target.closest(self.beginCheckoutButtons.join(', '));
-            if(targetElement) self.ecommerceDataLayer('begin_checkout', self.cart || { currency: {{ shop.currency | json }}, items: [] });
+            if(targetElement) {
+              self.ecommerceDataLayer('begin_checkout', self.cart);
+            }
           });
         }
 
-        // view_cart page
+        // view_cart, add_to_cart, remove_from_cart
         viewCartPageData() {
-          this.ecommerceDataLayer('view_cart', this.cart || { currency: {{ shop.currency | json }}, items: [] });
+          
+          this.ecommerceDataLayer('view_cart', this.cart);
+
+          //if cart quantity chagne reload page 
           if(!this.isAjaxCartIncrementDecrement) {
             const self = this;
             document.addEventListener('pointerdown', (event) => {
               const target = event.target.closest('a[href*="/cart/change?"]');
               if(target) {
-                const linkUrl = target.getAttribute('href') || '';
-                const queryString = linkUrl.split("?")[1] || '';
+                const linkUrl = target.getAttribute('href');
+                const queryString = linkUrl.split("?")[1];
                 const urlParams = new URLSearchParams(queryString);
-                const newQuantity = +urlParams.get("quantity");
+                const newQuantity = urlParams.get("quantity");
                 const line = urlParams.get("line");
                 const cart_id = urlParams.get("id");
+        
                 
                 if(newQuantity && (line || cart_id)) {
-                  let item = line ? {...(self.cart.items[(line - 1)] || {})} : (self.cart.items.find(i => i.key === cart_id) || {});
-                  let name = newQuantity < (item.quantity || 0) ? 'remove_from_cart' : 'add_to_cart';
-                  let quantity = Math.abs(newQuantity - (item.quantity || 0));
+                  let item = line ? {...self.cart.items[line - 1]} : self.cart.items.find(item => item.key === cart_id);
+        
+                  let event = 'add_to_cart';
+                  if(newQuantity < item.quantity) {
+                    event = 'remove_from_cart';
+                  }
+        
+                  let quantity = Math.abs(newQuantity - item.quantity);
                   item['quantity'] = quantity;
-                  self.ecommerceDataLayer(name, {items: [item]});
+        
+                  self.ecommerceDataLayer(event, {items: [item]});
                 }
               }
             });
@@ -570,56 +658,77 @@ const UDL_SNIPPET_VALUE = raw`
               quantity: 1
           };
           
-          const variants = {{ product.variants | json }};
+          const variants = {{ product.variants | json }}
           this.ecommerceDataLayer('view_item', {items: [item]});
 
           if(this.shopifyDirectCheckoutButton.length) {
               let self = this;
               document.addEventListener('pointerdown', (event) => {  
+                let target = event.target;
                 let checkoutButton = event.target.closest(this.shopifyDirectCheckoutButton.join(', '));
+
                 if(checkoutButton && (variants || self.quickViewVariants)) {
-                  let checkoutForm = checkoutButton.closest('form[action*="/cart/add"]');
-                  if(checkoutForm) {
-                      let variant_id = null;
-                      let varientInput = checkoutForm.querySelector('input[name="id"]');
-                      let varientIdFromURL = new URLSearchParams(window.location.search).get('variant');
-                      let firstVarientId = item.variant_id;
 
-                      if(varientInput) variant_id = parseInt(varientInput.value);
-                      else if(varientIdFromURL) variant_id = parseInt(varientIdFromURL);
-                      else if(firstVarientId) variant_id = parseInt(firstVarientId);
+                    let checkoutForm = checkoutButton.closest('form[action*="/cart/add"]');
+                    if(checkoutForm) {
 
-                      if(variant_id) {
-                          let quantity = 1;
-                          let quantitySelector = checkoutForm.getAttribute('id');
-                          if(quantitySelector) {
-                            let quentityInput = document.querySelector('input[name="quantity"][form="'+quantitySelector+'"]');
-                            if(quentityInput) quantity = +quentityInput.value;
-                          }
-                          let variant = variants.find(v => v.id === +variant_id);
-                          if(variant && item) {
-                            item['variant_id'] = variant_id;
-                            item['variant_title'] = variant.title;
-                            item['final_price'] = variant.price;
-                            item['quantity'] = quantity;
-                            self.ecommerceDataLayer('add_to_cart', {items: [item]});
-                            self.ecommerceDataLayer('begin_checkout', {items: [item]});
-                          } else if(self.quickViewedItem) {                                  
-                            let qvVariant = (self.quickViewVariants || []).find(v => v.id === +variant_id);
-                            if(qvVariant) {
-                              self.quickViewedItem['variant_id'] = variant_id;
-                              self.quickViewedItem['variant_title'] = qvVariant.title;
-                              self.quickViewedItem['final_price'] = parseFloat(qvVariant.price || 0) * 100;
-                              self.quickViewedItem['quantity'] = quantity;
-                              self.ecommerceDataLayer('add_to_cart', {items: [self.quickViewedItem]});
-                              self.ecommerceDataLayer('begin_checkout', {items: [self.quickViewedItem]});
+                        let variant_id = null;
+                        let varientInput = checkoutForm.querySelector('input[name="id"]');
+                        let varientIdFromURL = new URLSearchParams(window.location.search).get('variant');
+                        let firstVarientId = item.variant_id;
+
+                        if(varientInput) {
+                          variant_id = parseInt(varientInput.value);
+                        }else if(varientIdFromURL) {
+                          variant_id = varientIdFromURL;
+                        }else if(firstVarientId) {
+                          variant_id = firstVarientId;
+                        }
+
+                        if(variant_id) {
+                            variant_id = parseInt(variant_id);
+
+                            let quantity = 1;
+                            let quantitySelector = checkoutForm.getAttribute('id');
+                            if(quantitySelector) {
+                              let quentityInput = document.querySelector('input[name="quantity"][form="'+quantitySelector+'"]');
+                              if(quentityInput) {
+                                  quantity = +quentityInput.value;
+                              }
                             }
-                          }
-                      }
-                  }
+                          
+                            if(variant_id) {
+                                let variant = variants.find(item => item.id === +variant_id);
+                                if(variant && item) {
+                                    variant_id
+                                    item['variant_id'] = variant_id;
+                                    item['variant_title'] = variant.title;
+                                    item['final_price'] = variant.price;
+                                    item['quantity'] = quantity;
+                                    
+                                    self.ecommerceDataLayer('add_to_cart', {items: [item]});
+                                    self.ecommerceDataLayer('begin_checkout', {items: [item]});
+                                }else if(self.quickViewedItem) {                                  
+                                  let variant = self.quickViewVariants.find(item => item.id === +variant_id);
+                                  if(variant) {
+                                    self.quickViewedItem['variant_id'] = variant_id;
+                                    self.quickViewedItem['variant_title'] = variant.title;
+                                    self.quickViewedItem['final_price'] = parseFloat(variant.price) * 100;
+                                    self.quickViewedItem['quantity'] = quantity;
+                                    
+                                    self.ecommerceDataLayer('add_to_cart', {items: [self.quickViewedItem]});
+                                    self.ecommerceDataLayer('begin_checkout', {items: [self.quickViewedItem]});
+                                    
+                                  }
+                                }
+                            }
+                        }
+                    }
+
                 }
               }); 
           }
+          
           {% endif %}
         }
 
@@ -639,7 +748,7 @@ const UDL_SNIPPET_VALUE = raw`
                     'product_type': {{ product.type | json }},
                     'item_list_id': {{ collection.id | json }},
                     'item_list_name': {{ collection.title | json }},
-                    'url': {{ product.url | json }},
+                    'url': {{product.url | json}},
                     'quantity': 1
                 },
               {% endfor %}
@@ -649,8 +758,10 @@ const UDL_SNIPPET_VALUE = raw`
           this.itemsList = ecommerce.items;
           ecommerce['item_list_id'] = {{ collection.id | json }}
           ecommerce['item_list_name'] = {{ collection.title | json }}
+
           this.ecommerceDataLayer('view_item_list', ecommerce);
         }
+        
         
         // add to wishlist
         addToWishListData() {
@@ -658,42 +769,48 @@ const UDL_SNIPPET_VALUE = raw`
             const self = this;
             document.addEventListener('pointerdown', (event) => {
               let target = event.target;
+              
               if(target.closest(self.addToWishListSelectors.addWishListIcon)) {
-                let pageULR = window.location.href.replace(/\?.+/, '');
-                let requestURL;
-                if(/\/products\/[^/]+$/.test(pageULR)) {
+                let pageULR = window.location.href.replace(/\\?.+/, '');
+                let requestURL = undefined;
+          
+                if(/\\/products\\/[^/]+$/.test(pageULR)) {
                   requestURL = pageULR;
                 } else if(self.addToWishListSelectors.gridItemSelector && self.addToWishListSelectors.productLinkSelector) {
                   let itemElement = target.closest(self.addToWishListSelectors.gridItemSelector);
                   if(itemElement) {
                     let linkElement = itemElement.querySelector(self.addToWishListSelectors.productLinkSelector); 
                     if(linkElement) {
-                      let link = (linkElement.getAttribute('href') || '').replace(/\?.+/g, '');
-                      if(link && /\/products\/[^/]+$/.test(link)) requestURL = link;
+                      let link = linkElement.getAttribute('href').replace(/\\?.+/g, '');
+                      if(link && /\\/products\\/[^/]+$/.test(link)) {
+                        requestURL = link;
+                      }
                     }
                   }
                 }
+
                 if(requestURL) {
                   fetch(requestURL + '.json')
                     .then(res => res.json())
                     .then(result => {
-                      let data = (result || {}).product;                    
+                      let data = result.product;                    
                       if(data) {
                         let dataLayerData = {
                           product_id: data.id,
-                          variant_id: data.variants?.[0]?.id,
-                          product_title: data.title,
+                            variant_id: data.variants[0].id,
+                            product_title: data.title,
                           quantity: 1,
-                          final_price: parseFloat(data.variants?.[0]?.price || 0) * 100,
+                          final_price: parseFloat(data.variants[0].price) * 100,
                           total_discount: 0,
                           product_type: data.product_type,
                           vendor: data.vendor,
-                          variant_title: (data.variants?.[0]?.title !== 'Default Title') ? data.variants?.[0]?.title : undefined,
-                          sku: data.variants?.[0]?.sku,
+                          variant_title: (data.variants[0].title !== 'Default Title') ? data.variants[0].title : undefined,
+                          sku: data.variants[0].sku,
                         }
+
                         self.ecommerceDataLayer('add_to_wishlist', {items: [dataLayerData]});
                       }
-                    }).catch(()=>{});
+                    });
                 }
               }
             });
@@ -706,74 +823,89 @@ const UDL_SNIPPET_VALUE = raw`
             document.addEventListener('pointerdown', (event) => {
               let target = event.target;
               if(target.closest(self.quickViewSelector.quickViewElement)) {
-                let requestURL;
+                let requestURL = undefined;
                 let itemElement = target.closest(this.quickViewSelector.gridItemSelector );
+                
                 if(itemElement) {
                   let linkElement = itemElement.querySelector(self.quickViewSelector.productLinkSelector); 
                   if(linkElement) {
-                    let link = (linkElement.getAttribute('href') || '').replace(/\?.+/g, '');
-                    if(link && /\/products\/[^/]+$/.test(link)) requestURL = link;
+                    let link = linkElement.getAttribute('href').replace(/\\?.+/g, '');
+                    if(link && /\\/products\\/[^/]+$/.test(link)) {
+                      requestURL = link;
+                    }
                   }
                 }   
+                
                 if(requestURL) {
-                  fetch(requestURL + '.json')
-                    .then(res => res.json())
-                    .then(result => {
-                      let data = (result || {}).product;                    
-                      if(data) {
-                        let dataLayerData = {
-                          product_id: data.id,
-                          variant_id: data.variants?.[0]?.id,
-                          product_title: data.title,
-                          quantity: 1,
-                          final_price: parseFloat(data.variants?.[0]?.price || 0) * 100,
-                          total_discount: 0,
-                          product_type: data.product_type,
-                          vendor: data.vendor,
-                          variant_title: (data.variants?.[0]?.title !== 'Default Title') ? data.variants?.[0]?.title : undefined,
-                          sku: data.variants?.[0]?.sku,
+                    fetch(requestURL + '.json')
+                      .then(res => res.json())
+                      .then(result => {
+                        let data = result.product;                    
+                        if(data) {
+                          let dataLayerData = {
+                            product_id: data.id,
+                            variant_id: data.variants[0].id,
+                            product_title: data.title,
+                            quantity: 1,
+                            final_price: parseFloat(data.variants[0].price) * 100,
+                            total_discount: 0,
+                            product_type: data.product_type,
+                            vendor: data.vendor,
+                            variant_title: (data.variants[0].title !== 'Default Title') ? data.variants[0].title : undefined,
+                            sku: data.variants[0].sku,
+                          }
+  
+                          self.ecommerceDataLayer('view_item', {items: [dataLayerData]});
+                          self.quickViewVariants = data.variants;
+                          self.quickViewedItem = dataLayerData;
                         }
-                        self.ecommerceDataLayer('view_item', {items: [dataLayerData]});
-                        self.quickViewVariants = data.variants || [];
-                        self.quickViewedItem = dataLayerData;
-                      }
-                    }).catch(()=>{});
-                }
+                      });
+                  }
               }
             });
 
             {% unless template contains 'product' %}
-            if(this.shopifyDirectCheckoutButton.length) {
-              let self = this;
-              document.addEventListener('pointerdown', (event) => {
-                let checkoutButton = event.target.closest(this.shopifyDirectCheckoutButton.join(', '));
-                if(self.quickViewVariants && self.quickViewedItem && self.quickViewVariants.length && checkoutButton) {
-                  let checkoutForm = checkoutButton.closest('form[action*="/cart/add"]');
-                  if(checkoutForm) {
-                    let quantity = 1;
-                    let varientInput = checkoutForm.querySelector('input[name="id"]');
-                    let quantitySelector = checkoutForm.getAttribute('id');
-                    if(quantitySelector) {
-                      let quentityInput = document.querySelector('input[name="quantity"][form="'+quantitySelector+'"]');
-                      if(quentityInput) quantity = +quentityInput.value;
-                    }
-                    if(varientInput) {
-                      let variant_id = parseInt(varientInput.value);
-                      if(variant_id) {
-                        const variant = self.quickViewVariants.find(v => v.id === +variant_id);
-                        if(variant && self.quickViewedItem) {
-                          self.quickViewedItem['variant_id'] = variant_id;
-                          self.quickViewedItem['variant_title'] = variant.title;
-                          self.quickViewedItem['final_price'] = parseFloat(variant.price || 0) * 100;
-                          self.quickViewedItem['quantity'] = quantity; 
-                          self.ecommerceDataLayer('add_to_cart', {items: [self.quickViewedItem]});
-                          self.ecommerceDataLayer('begin_checkout', {items: [self.quickViewedItem]});
+              if(this.shopifyDirectCheckoutButton.length) {
+                let self = this;
+                document.addEventListener('pointerdown', (event) => {
+                  let target = event.target;
+                  let checkoutButton = event.target.closest(this.shopifyDirectCheckoutButton.join(', '));
+                  
+                  if(self.quickViewVariants && self.quickViewedItem && self.quickViewVariants.length && checkoutButton) {
+
+                    let checkoutForm = checkoutButton.closest('form[action*="/cart/add"]');
+                    if(checkoutForm) {
+                        let quantity = 1;
+                        let varientInput = checkoutForm.querySelector('input[name="id"]');
+                        let quantitySelector = checkoutForm.getAttribute('id');
+
+                        if(quantitySelector) {
+                          let quentityInput = document.querySelector('input[name="quantity"][form="'+quantitySelector+'"]');
+                          if(quentityInput) {
+                              quantity = +quentityInput.value;
+                          }
                         }
-                      }
+
+                        if(varientInput) {
+                            let variant_id = parseInt(varientInput.value);
+
+                            if(variant_id) {
+                                const variant = self.quickViewVariants.find(item => item.id === +variant_id);
+                                if(variant && self.quickViewedItem) {
+                                    self.quickViewedItem['variant_id'] = variant_id;
+                                    self.quickViewedItem['variant_title'] = variant.title;
+                                    self.quickViewedItem['final_price'] = parseFloat(variant.price) * 100;
+                                    self.quickViewedItem['quantity'] = quantity; 
+    
+                                    self.ecommerceDataLayer('add_to_cart', {items: [self.quickViewedItem]});
+                                    self.ecommerceDataLayer('begin_checkout', {items: [self.quickViewedItem]});
+                                }
+                            }
+                        }
                     }
+
                   }
-                }
-              }); 
+                }); 
             }
             {% endunless %}
           }
@@ -781,184 +913,277 @@ const UDL_SNIPPET_VALUE = raw`
 
         // select_item events
         selectItemData() {
+          
           const self = this;
-          const items = this.itemsList || [];
+          const items = this.itemsList;
 
           {% if template contains 'collection' %}            
-          document.addEventListener('pointerdown', function(event) {
-            const productLink = event.target.closest('a[href*="/products/"]');
-            if(productLink) {
-              const linkUrl = productLink.getAttribute('href') || '';
-              const matchProduct = (it) => {
-                try {
-                  var itemSlug = (it.url.split('/products/')[1] || '').split('#')[0].split('?')[0].trim();
-                  var linkSlug = (linkUrl.split('/products/')[1] || '').split('#')[0].split('?')[0].trim();
-                  return itemSlug === linkSlug;  
-                } catch(e){ return false; }
+            document.addEventListener('pointerdown', function(event) {
+                            
+              const productLink = event.target.closest('a[href*="/products/"]');
+
+              if(productLink) {
+                  const linkUrl = productLink.getAttribute('href');
+
+                  const matchProduct = (item) => {
+                    var itemSlug = (item.url.split('/products/')[1]).split('#')[0].split('?')[0].trim();
+                    var linkUrlItemSlug = (linkUrl.split('/products/')[1]).split('#')[0].split('?')[0].trim();
+                    
+                    return itemSlug === linkUrlItemSlug;  
+                  }
+                
+                  const item = items.find(matchProduct);
+                  const index = items.findIndex(matchProduct);
+                
+                  if(item) {
+                    self.ecommerceDataLayer('select_item', {items: [{...item, index: index}]});
+                  }
               }
-              const item = items.find(matchProduct);
-              const index = items.findIndex(matchProduct);
-              if(item) self.ecommerceDataLayer('select_item', {items: [{...item, index}]});
-            }
-          });
+            });
           {% endif %}
 
-          try {
-            document.addEventListener('variant:change', function(event) {            
-              const product_id = event.detail?.product?.id;
-              const variant_id = event.detail?.variant?.id;
-              const vendor = event.detail?.product?.vendor; 
-              const variant_title = event.detail?.variant?.public_title;
-              const product_title = event.detail?.product?.title;
-              const final_price = event.detail?.variant?.price;
-              const product_type = event.detail?.product?.type;
-              if(!product_id || !variant_id) return;
-              const item = {
-                product_id, product_title, variant_id, variant_title, vendor,
-                final_price, product_type, quantity: 1
-              };
-              self.ecommerceDataLayer('select_item', {items: [item]});
-            });
-          } catch(e) {}
+          // select item on varient change
+          document.addEventListener('variant:change', function(event) {            
+            const product_id = event.detail.product.id;
+            const variant_id = event.detail.variant.id;
+            const vendor = event.detail.product.vendor; 
+            const variant_title = event.detail.variant.public_title;
+            const product_title = event.detail.product.title;
+            const final_price = event.detail.variant.price;
+            const product_type = event.detail.product.type;
+
+             const item = {
+                product_id: product_id,
+                product_title: product_title,
+                variant_id: variant_id,
+                variant_title: variant_title,
+                vendor: vendor,
+                final_price: final_price,
+                product_type: product_type, 
+                quantity: 1
+             }
+            
+             self.ecommerceDataLayer('select_item', {items: [item]});
+          });
         }
 
         // all ecommerce events
         ecommerceDataLayer(event, data) {
           const self = this;
           dataLayer.push({ 'ecommerce': null });
-          const cur = (this.cart && this.cart.currency) || {{ shop.currency | json }};
-          const itemsList = (data && data.items) ? data.items : [];
           const dataLayerData = {
             "event": this.eventPrefix + event,
             'ecommerce': {
-               'currency': cur,
-               'items': itemsList.map((item, index) => {
-                 const x = {
+               'currency': this.cart.currency,
+               'items': data.items.map((item, index) => {
+                 const dataLayerItem = {
                     'index': index,
-                    'item_id': this.formattedItemId
-                      ? ('shopify_' + this.countryCode + '_' + item.product_id + '_' + item.variant_id)
-                      : String(item.product_id || ''),
-                    'product_id': String(item.product_id || ''),
-                    'variant_id': String(item.variant_id || ''),
+                    'item_id': this.formattedItemId  ? \`shopify_\${this.countryCode}_\${item.product_id}_\${item.variant_id}\` : item.product_id.toString(),
+                    'product_id': item.product_id.toString(),
+                    'variant_id': item.variant_id.toString(),
                     'item_name': item.product_title,
-                    'quantity': item.quantity || 1,
-                    'price': +(((item.final_price || 0) / 100).toFixed(2)),
-                    'discount': item.total_discount ? +(((item.total_discount || 0) / 100).toFixed(2)) : 0 
-                 };
-                 if(item.product_type) x['item_category'] = item.product_type;
-                 if(item.vendor) x['item_brand'] = item.vendor;
-                 if(item.variant_title && item.variant_title !== 'Default Title') x['item_variant'] = item.variant_title;
-                 if(item.sku) x['sku'] = item.sku;
-                 if(item.item_list_name) x['item_list_name'] = item.item_list_name;
-                 if(item.item_list_id) x['item_list_id'] = String(item.item_list_id);
-                 return x;
-               })
-            }
-          };
+                    'quantity': item.quantity,
+                    'price': +((item.final_price / 100).toFixed(2)),
+                    'discount': item.total_discount ? +((item.total_discount / 100).toFixed(2)) : 0 
+                }
 
-          if(typeof data?.total_price !== 'undefined') {
-            dataLayerData['ecommerce']['value'] = +((data.total_price / 100).toFixed(2));
-          } else {
-            dataLayerData['ecommerce']['value'] = +(dataLayerData['ecommerce']['items'].reduce((t, it) => t + (it.price * it.quantity), 0)).toFixed(2);
+                if(item.product_type) {
+                  dataLayerItem['item_category'] = item.product_type;
+                }
+                
+                if(item.vendor) {
+                  dataLayerItem['item_brand'] = item.vendor;
+                }
+               
+                if(item.variant_title && item.variant_title !== 'Default Title') {
+                  dataLayerItem['item_variant'] = item.variant_title;
+                }
+              
+                if(item.sku) {
+                  dataLayerItem['sku'] = item.sku;
+                }
+
+                if(item.item_list_name) {
+                  dataLayerItem['item_list_name'] = item.item_list_name;
+                }
+
+                if(item.item_list_id) {
+                  dataLayerItem['item_list_id'] = item.item_list_id.toString()
+                }
+
+                return dataLayerItem;
+              })
+            }
           }
-          if(data?.item_list_id) dataLayerData['ecommerce']['item_list_id'] = data.item_list_id;
-          if(data?.item_list_name) dataLayerData['ecommerce']['item_list_name'] = data.item_list_name;
-          if(data?.search_term) dataLayerData['search_term'] = data.search_term;
+
+          if(data.total_price !== undefined) {
+            dataLayerData['ecommerce']['value'] =  +((data.total_price / 100).toFixed(2));
+          } else {
+            dataLayerData['ecommerce']['value'] = +(dataLayerData['ecommerce']['items'].reduce((total, item) => total + (item.price * item.quantity), 0)).toFixed(2);
+          }
+          
+          if(data.item_list_id) {
+            dataLayerData['ecommerce']['item_list_id'] = data.item_list_id;
+          }
+          
+          if(data.item_list_name) {
+            dataLayerData['ecommerce']['item_list_name'] = data.item_list_name;
+          }
+
+          if(data.search_term) {
+            dataLayerData['search_term'] = data.search_term;
+          }
 
           if(self.dataSchema.dynamicRemarketing && self.dataSchema.dynamicRemarketing.show) {
             dataLayer.push({ 'dynamicRemarketing': null });
             dataLayerData['dynamicRemarketing'] = {
-              value: dataLayerData.ecommerce.value,
-              items: dataLayerData.ecommerce.items.map(it => ({ id: it.item_id, google_business_vertical: self.dataSchema.dynamicRemarketing.business_vertical }))
+                value: dataLayerData.ecommerce.value,
+                items: dataLayerData.ecommerce.items.map(item => ({id: item.item_id, google_business_vertical: self.dataSchema.dynamicRemarketing.business_vertical}))
             }
           }
 
-          if(!self.dataSchema.ecommerce || !self.dataSchema.ecommerce.show) delete dataLayerData['ecommerce'];
+          if(!self.dataSchema.ecommerce ||  !self.dataSchema.ecommerce.show) {
+            delete dataLayerData['ecommerce'];
+          }
+
           dataLayer.push(dataLayerData);
           self.eventConsole(self.eventPrefix + event, dataLayerData);
         }
 
-        // contact/newsletter
+        
+        // contact form submit & newsletters signup
         formData() {
           const self = this;
           document.addEventListener('submit', function(event) {
+
             let targetForm = event.target.closest('form[action^="/contact"]');
+
+
             if(targetForm) {
               const formData = {
                 form_location: window.location.href,
                 form_id: targetForm.getAttribute('id'),
                 form_classes: targetForm.getAttribute('class')
               };
+                            
               let formType = targetForm.querySelector('input[name="form_type"]');
               let inputs = targetForm.querySelectorAll("input:not([type=hidden]):not([type=submit]), textarea, select");
+              
               inputs.forEach(function(input) {
-                var inputName = input.name, inputValue = input.value;
+                var inputName = input.name;
+                var inputValue = input.value;
+                
                 if (inputName && inputValue) {
-                  var matches = inputName.match(/\[(.*?)\]/);
-                  if (matches && matches.length > 1) formData[matches[1]] = input.value;
+                  var matches = inputName.match(/\\[(.*?)\\]/);
+                  if (matches && matches.length > 1) {
+                     var fieldName = matches[1];
+                     formData[fieldName] = input.value;
+                  }
                 }
               });
+              
               if(formType && formType.value === 'customer') {
                 dataLayer.push({ event: self.eventPrefix + 'newsletter_signup', ...formData});
                 self.eventConsole(self.eventPrefix + 'newsletter_signup', { event: self.eventPrefix + 'newsletter_signup', ...formData});
+
               } else if(formType && formType.value === 'contact') {
                 dataLayer.push({ event: self.eventPrefix + 'contact_form_submit', ...formData});
                 self.eventConsole(self.eventPrefix + 'contact_form_submit', { event: self.eventPrefix + 'contact_form_submit', ...formData});
               }
             }
           });
+
         }
 
-        // tel:
+        // phone_number_click event
         phoneClickData() {
           const self = this; 
           document.addEventListener('click', function(event) {
             let target = event.target.closest('a[href^="tel:"]');
             if(target) {
               let phone_number = target.getAttribute('href').replace('tel:', '');
-              let payload = { event: self.eventPrefix + 'phone_number_click', page_location: window.location.href,
-                              link_classes: target.getAttribute('class'), link_id: target.getAttribute('id'), phone_number };
-              dataLayer.push(payload); self.eventConsole(self.eventPrefix + 'phone_number_click', payload);
+              let eventData = {
+                event: self.eventPrefix + 'phone_number_click',
+                page_location: window.location.href,
+                link_classes: target.getAttribute('class'),
+                link_id: target.getAttribute('id'),
+                phone_number
+              }
+
+              dataLayer.push(eventData);
+              self.eventConsole(self.eventPrefix + 'phone_number_click', eventData);
             }
           });
         }
-
-        // mailto:
+  
+        // email_click event
         emailClickData() {
           const self = this; 
           document.addEventListener('click', function(event) {
             let target = event.target.closest('a[href^="mailto:"]');
             if(target) {
               let email_address = target.getAttribute('href').replace('mailto:', '');
-              let payload = { event: self.eventPrefix + 'email_click', page_location: window.location.href,
-                              link_classes: target.getAttribute('class'), link_id: target.getAttribute('id'), email_address };
-              dataLayer.push(payload); self.eventConsole(self.eventPrefix + 'email_click', payload);
+              let eventData = {
+                event: self.eventPrefix + 'email_click',
+                page_location: window.location.href,
+                link_classes: target.getAttribute('class'),
+                link_id: target.getAttribute('id'),
+                email_address
+              }
+
+              dataLayer.push(eventData);
+              self.eventConsole(self.eventPrefix + 'email_click', eventData);
             }
           });
         }
 
-        // login/register 
+        //login register 
         loginRegisterData() {
+          
           const self = this; 
-          let isTrackedLogin = false, isTrackedRegister = false;
+          let isTrackedLogin = false;
+          let isTrackedRegister = false;
+          
           if(window.location.href.includes('/account/login')) {
             document.addEventListener('submit', function(e) {
               const loginForm = e.target.closest('[action="/account/login"]');
-              if(loginForm && !isTrackedLogin) { isTrackedLogin = true; const ev = { event: self.eventPrefix + 'login' }; dataLayer.push(ev); self.eventConsole(self.eventPrefix + 'login', ev); }
+              if(loginForm && !isTrackedLogin) {
+                  const eventData = {
+                    event: self.eventPrefix + 'login'
+                  }
+                  isTrackedLogin = true;
+                  dataLayer.push(eventData);
+                  self.eventConsole(self.eventPrefix + 'login', eventData);
+              }
             });
           }
+
           if(window.location.href.includes('/account/register')) {
             document.addEventListener('submit', function(e) {
               const registerForm = e.target.closest('[action="/account"]');
-              if(registerForm && !isTrackedRegister) { isTrackedRegister = true; const ev = { event: self.eventPrefix + 'sign_up' }; dataLayer.push(ev); self.eventConsole(self.eventPrefix + 'sign_up', ev); }
+              if(registerForm && !isTrackedRegister) {
+                  const eventData = {
+                    event: self.eventPrefix + 'sign_up'
+                  }
+                
+                  isTrackedRegister = true;
+                  dataLayer.push(eventData);
+                  self.eventConsole(self.eventPrefix + 'sign_up', eventData);
+              }
             });
           }
         }
       } 
+      // end Ultimate_Shopify_DataLayer
 
       document.addEventListener('DOMContentLoaded', function() {
-        try{ new Ultimate_Shopify_DataLayer(); }catch(error){ console.log(error); }
+        try{
+          new Ultimate_Shopify_DataLayer();
+        }catch(error) {
+          console.log(error);
+        }
       });
+    
   })();
 </script>
 `;
@@ -966,161 +1191,6 @@ const UDL_SNIPPET_VALUE = raw`
 /* -----------------------------------------------------------
    2) Custom Pixel JS — Shopify Customer Events (raw template)
    ----------------------------------------------------------- */
-const CUSTOM_PIXEL_JS = raw(`export default (analytics) => {
-  const event_prefix = '';
-  const formattedItemId = true;
-  const gclidWithPageLocation = true;
-  const GTM_container_url = 'https://www.googletagmanager.com';
-  const GTM_container_id = 'GTM-KXSP7VPD'; // <--  GTM ID
-
-  let storeCountryCode = window.localStorage.getItem('shopCountryCode');
-  storeCountryCode = storeCountryCode || 'US';
-  window.dataLayer = window.dataLayer || [];
-
-  // ----------------------
-  // Utility Functions
-  // ----------------------
-  function eventLog(eventName, eventData) {
-    const css1 = 'background: red; color: #fff; border-radius: 3px 0 0 3px; padding: 3px 5px;';
-    const css2 = 'background: blue; color: #fff; border-radius: 0 3px 3px 0; padding: 3px 5px;';
-    console.log('%cPixel Event:%c ' + event_prefix + eventName, css1, css2, eventData);
-  }
-
-  function getPageLocation(event) {
-    let pageLocation = event.context.document.location.href;
-    if (gclidWithPageLocation) {
-      const name = '_gcl_aw';
-      const value = '; ' + document.cookie;
-      const parts = value.split('; ' + name + '=');
-      if (parts.length === 2) {
-        const gclidCookie = parts.pop().split(';').shift();
-        const gclidParts = gclidCookie.split('.');
-        const gclid = gclidParts[gclidParts.length - 1];
-        if (gclid && pageLocation.indexOf('gclid=') === -1) {
-          pageLocation = (pageLocation.indexOf('?') >= 0) ? (pageLocation + '&gclid=' + gclid) : (pageLocation + '?gclid=' + gclid);
-        }
-      }
-    }
-    return pageLocation;
-  }
-
-  async function sha256Hash(value, lowercase = true) {
-    if (!value) return undefined;
-    const text = lowercase ? String(value).trim().toLowerCase() : String(value).trim();
-    const data = new TextEncoder().encode(text);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
-  }
-
-  function getPriceAmount(val) {
-    if (val == null) return undefined;
-    if (typeof val === 'object') return val.amount ?? val.value ?? undefined;
-    return val;
-  }
-
-  // ----------------------
-  // Main eCommerce handler
-  // ----------------------
-  async function ecommerceDataLayer(gtm_event_name, event) {
-    const checkout = event.data?.checkout || {};
-    const itemsRaw = checkout.lineItems || checkout.line_items || [];
-
-    // Hash customer identifiers
-    const email = checkout.email;
-    const phone = checkout.phone;
-    const hash_email = await sha256Hash(email, true);
-    const hash_phone = await sha256Hash(phone, false);
-
-    const customer = {
-      first_name: checkout.billingAddress?.firstName || checkout.shippingAddress?.firstName,
-      last_name: checkout.billingAddress?.lastName || checkout.shippingAddress?.lastName,
-      email,
-      hash_email,
-      phone,
-      hash_phone,
-      address: checkout.shippingAddress,
-    };
-    window.dataLayer.push({ customer });
-
-    // Format line items
-    const items = itemsRaw.map((item) => {
-      const variant = item.variant || item.merchandise || {};
-      const product = variant.product || {};
-      const price = getPriceAmount(variant.price) || getPriceAmount(item.price) || 0;
-      const idProduct = product.id || product.productId || item.product_id || '';
-      const idVariant = variant.id || variant.variantId || item.variant_id || '';
-
-      return {
-        item_id: (formattedItemId ? ('shopify_' + storeCountryCode + '_' + idProduct + '_' + idVariant) : idProduct),
-        product_id: idProduct,
-        variant_id: idVariant,
-        sku: variant.sku || item.sku,
-        item_name: item.title || product.title,
-        item_variant: variant.title,
-        price,
-        quantity: item.quantity || 1,
-        item_brand: product.vendor || product.brand,
-        item_category: product.type || product.productType,
-      };
-    });
-
-    const dataLayerInfo = {
-      event: event_prefix + gtm_event_name,
-      page_location: getPageLocation(event),
-      ecommerce: {
-        transaction_id: checkout.order?.id,
-        value: getPriceAmount(checkout.totalPrice),
-        tax: getPriceAmount(checkout.totalTax),
-        shipping: getPriceAmount(checkout.shippingLine?.price),
-        currency: checkout.currencyCode,
-        items,
-      },
-    };
-
-    window.dataLayer.push({ ecommerce: null }); // clear previous ecommerce object
-    window.dataLayer.push(dataLayerInfo);
-    eventLog(gtm_event_name, { ...dataLayerInfo, ...customer });
-  }
-
-  // ----------------------
-  // Checkout detection & GTM inject
-  // ----------------------
-  if (/.+\/checkouts?\/.*/.test(window.location.href)) {
-    // Inject GTM on checkout
-    (function (w, d, s, l, i) {
-      w[l] = w[l] || [];
-      w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
-      const f = d.getElementsByTagName(s)[0];
-      const j = d.createElement(s);
-      const dl = l != 'dataLayer' ? '&l=' + l : '';
-      j.async = true;
-      j.src = GTM_container_url + '/gtm.js?id=' + i + dl;
-      f.parentNode.insertBefore(j, f);
-    })(window, document, 'script', 'dataLayer', GTM_container_id);
-
-    // Subscribe to Shopify checkout events
-    analytics.subscribe('page_viewed', (event) => {
-      const eventData = { event: event_prefix + 'page_view', page_location: getPageLocation(event) };
-      window.dataLayer.push(eventData);
-      eventLog('page_view', eventData);
-    });
-
-    analytics.subscribe('checkout_shipping_address_submitted', (event) =>
-      ecommerceDataLayer('add_shipping_info', event)
-    );
-    analytics.subscribe('checkout_shipping_info_submitted', (event) =>
-      ecommerceDataLayer('add_shipping_info', event)
-    );
-    analytics.subscribe('payment_info_submitted', (event) =>
-      ecommerceDataLayer('add_payment_info', event)
-    );
-    analytics.subscribe('checkout_completed', (event) =>
-      ecommerceDataLayer('purchase', event)
-    );
-  }
-};
-`);
 
 
 /* ----------------------
