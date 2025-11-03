@@ -966,124 +966,102 @@ const UDL_SNIPPET_VALUE = raw`
 /* -----------------------------------------------------------
    2) Custom Pixel JS — Shopify Customer Events (raw template)
    ----------------------------------------------------------- */
-const CUSTOM_PIXEL_JS = raw`
-export default (analytics) => {
+const CUSTOM_PIXEL_JS = raw(`export default (analytics) => {
   const event_prefix = '';
   const formattedItemId = true;
   const gclidWithPageLocation = true;
+  const GTM_container_url = 'https://www.googletagmanager.com';
+  const GTM_container_id = 'GTM-KXSP7VPD'; // <--  GTM ID
 
-  let storeCountryCode = null;
-  try { storeCountryCode = window.localStorage.getItem('shopCountryCode'); } catch(e) {}
+  let storeCountryCode = window.localStorage.getItem('shopCountryCode');
   storeCountryCode = storeCountryCode || 'US';
   window.dataLayer = window.dataLayer || [];
 
+  // ----------------------
+  // Utility Functions
+  // ----------------------
   function eventLog(eventName, eventData) {
-    try {
-      const css1 = 'background: red; color: #fff; font-size: normal; border-radius: 3px 0 0 3px; padding: 3px 4px;';
-      const css2 = 'background-color: blue; color: #fff; font-size: normal; border-radius: 0 3px 3px 0; padding: 3px 4px;';
-      console.log('%cGTM DataLayer Event:%c' + event_prefix + eventName, css1, css2, eventData);
-    } catch(e) {}
+    const css1 = 'background: red; color: #fff; border-radius: 3px 0 0 3px; padding: 3px 5px;';
+    const css2 = 'background: blue; color: #fff; border-radius: 0 3px 3px 0; padding: 3px 5px;';
+    console.log('%cPixel Event:%c ' + event_prefix + eventName, css1, css2, eventData);
   }
 
   function getPageLocation(event) {
-    let pageLocation = (event?.context?.document?.location?.href) || (typeof window !== 'undefined' && window.location ? window.location.href : '');
+    let pageLocation = event.context.document.location.href;
     if (gclidWithPageLocation) {
-      try {
-        const name = '_gcl_aw';
-        const value = '; ' + document.cookie;
-        const parts = value.split('; ' + name + '=');
-        if (parts.length === 2) {
-          const gclidCookie = parts.pop().split(';').shift();
-          const gclidParts = gclidCookie.split('.');
-          const gclid = gclidParts[gclidParts.length - 1];
-          if (gclid && !pageLocation.includes('gclid=')) {
-            pageLocation = pageLocation.includes('?') ? (pageLocation + '&gclid=' + gclid) : (pageLocation + '?gclid=' + gclid);
-          }
+      const name = '_gcl_aw';
+      const value = '; ' + document.cookie;
+      const parts = value.split('; ' + name + '=');
+      if (parts.length === 2) {
+        const gclidCookie = parts.pop().split(';').shift();
+        const gclidParts = gclidCookie.split('.');
+        const gclid = gclidParts[gclidParts.length - 1];
+        if (gclid && pageLocation.indexOf('gclid=') === -1) {
+          pageLocation = (pageLocation.indexOf('?') >= 0) ? (pageLocation + '&gclid=' + gclid) : (pageLocation + '?gclid=' + gclid);
         }
-      } catch(e) {}
+      }
     }
     return pageLocation;
   }
 
-  async function sha256HashNormalized(value, lower = true) {
+  async function sha256Hash(value, lowercase = true) {
     if (!value) return undefined;
-    const v = lower ? String(value).trim().toLowerCase() : String(value).trim();
-    const data = new TextEncoder().encode(v);
+    const text = lowercase ? String(value).trim().toLowerCase() : String(value).trim();
+    const data = new TextEncoder().encode(text);
     const hashBuffer = await crypto.subtle.digest('SHA-256', data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(byte => ('00' + byte.toString(16)).slice(-2)).join('');
+    return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
-  function resilientLineItems(event) {
-    const li = (event?.data?.checkout?.lineItems
-      || event?.data?.checkout?.line_items
-      || event?.data?.lineItems
-      || event?.data?.line_items
-      || []);
-    return Array.isArray(li) ? li : [];
+  function getPriceAmount(val) {
+    if (val == null) return undefined;
+    if (typeof val === 'object') return val.amount ?? val.value ?? undefined;
+    return val;
   }
 
-  function resilientDiscounts(event) {
-    const arr = (event?.data?.checkout?.discountApplications
-      || event?.data?.checkout?.discount_applications
-      || event?.data?.discountApplications
-      || []);
-    return Array.isArray(arr) ? arr : [];
-  }
+  // ----------------------
+  // Main eCommerce handler
+  // ----------------------
+  async function ecommerceDataLayer(gtm_event_name, event) {
+    const checkout = event.data?.checkout || {};
+    const itemsRaw = checkout.lineItems || checkout.line_items || [];
 
-  function getPriceAmount(maybe) {
-    if (maybe == null) return undefined;
-    if (typeof maybe === 'number') return maybe;
-    if (typeof maybe === 'string') return maybe;
-    if (typeof maybe === 'object') return maybe.amount ?? maybe.value ?? undefined;
-    return undefined;
-  }
+    // Hash customer identifiers
+    const email = checkout.email;
+    const phone = checkout.phone;
+    const hash_email = await sha256Hash(email, true);
+    const hash_phone = await sha256Hash(phone, false);
 
-  async function ecommerceDataLayer(gtm_event_name, event) {  
-    const phone = event?.data?.checkout?.phone;
-    const email = event?.data?.checkout?.email;
-
-    const hash_phone = await sha256HashNormalized(phone, false);
-    const hash_email = await sha256HashNormalized(email, true);
-
-    const customerInfo = {
-      customer: {
-        first_name: event?.data?.checkout?.billingAddress?.firstName || event?.data?.checkout?.shippingAddress?.firstName,
-        last_name:  event?.data?.checkout?.billingAddress?.lastName  || event?.data?.checkout?.shippingAddress?.lastName,
-        email: email,
-        hash_email: hash_email,
-        phone: phone,
-        hash_phone: hash_phone,
-        address: event?.data?.checkout?.shippingAddress
-      }
+    const customer = {
+      first_name: checkout.billingAddress?.firstName || checkout.shippingAddress?.firstName,
+      last_name: checkout.billingAddress?.lastName || checkout.shippingAddress?.lastName,
+      email,
+      hash_email,
+      phone,
+      hash_phone,
+      address: checkout.shippingAddress,
     };
-    dataLayer.push(customerInfo);
+    window.dataLayer.push({ customer });
 
-    const discounts = resilientDiscounts(event).map(d => d?.title || d?.code || d?.type).filter(Boolean);
-
-    const items = resilientLineItems(event).map((item) => {
+    // Format line items
+    const items = itemsRaw.map((item) => {
       const variant = item.variant || item.merchandise || {};
       const product = variant.product || {};
-      const price = getPriceAmount(variant.price) ?? getPriceAmount(item.price) ?? 0;
-
-      const idProduct = product.id ?? product.productId ?? item.product_id ?? '';
-      const idVariant = variant.id ?? variant.variantId ?? item.variant_id ?? '';
+      const price = getPriceAmount(variant.price) || getPriceAmount(item.price) || 0;
+      const idProduct = product.id || product.productId || item.product_id || '';
+      const idVariant = variant.id || variant.variantId || item.variant_id || '';
 
       return {
-        item_id: formattedItemId
-          ? \`shopify_\${storeCountryCode}_\${idProduct}_\${idVariant}\`
-          : String(idProduct || ''),
-        product_id: idProduct || undefined,
-        variant_id: idVariant || undefined,
+        item_id: (formattedItemId ? ('shopify_' + storeCountryCode + '_' + idProduct + '_' + idVariant) : idProduct),
+        product_id: idProduct,
+        variant_id: idVariant,
         sku: variant.sku || item.sku,
         item_name: item.title || product.title,
-        coupon: (item.discountAllocations?.[0]?.discountApplication?.title) || undefined,
-        discount: getPriceAmount(item.discountAllocations?.[0]?.amount),
         item_variant: variant.title,
-        price: getPriceAmount(price),
+        price,
         quantity: item.quantity || 1,
         item_brand: product.vendor || product.brand,
-        item_category: product.type || product.productType
+        item_category: product.type || product.productType,
       };
     });
 
@@ -1091,42 +1069,59 @@ export default (analytics) => {
       event: event_prefix + gtm_event_name,
       page_location: getPageLocation(event),
       ecommerce: {
-        transaction_id: event?.data?.checkout?.order?.id,
-        value: getPriceAmount(event?.data?.checkout?.totalPrice),
-        tax: getPriceAmount(event?.data?.checkout?.totalTax),
-        shipping: getPriceAmount(event?.data?.checkout?.shippingLine?.price),
-        currency: event?.data?.checkout?.currencyCode,
-        coupon: discounts.join(',') || undefined,
-        items
-      }
+        transaction_id: checkout.order?.id,
+        value: getPriceAmount(checkout.totalPrice),
+        tax: getPriceAmount(checkout.totalTax),
+        shipping: getPriceAmount(checkout.shippingLine?.price),
+        currency: checkout.currencyCode,
+        items,
+      },
     };
 
-    dataLayer.push({ ecommerce: null });
-    dataLayer.push(dataLayerInfo);
-    eventLog(gtm_event_name, Object.assign({}, dataLayerInfo, customerInfo));
+    window.dataLayer.push({ ecommerce: null }); // clear previous ecommerce object
+    window.dataLayer.push(dataLayerInfo);
+    eventLog(gtm_event_name, { ...dataLayerInfo, ...customer });
   }
 
-  if (/.+\/checkouts?\/.*/.test(String(window?.location?.href || ''))) {
-    // Optional: GTM injection on checkout (often restricted)
-    /*
-    (function(w, d, s, l, i) {
+  // ----------------------
+  // Checkout detection & GTM inject
+  // ----------------------
+  if (/.+\/checkouts?\/.*/.test(window.location.href)) {
+    // Inject GTM on checkout
+    (function (w, d, s, l, i) {
       w[l] = w[l] || [];
-      w[l].push({'gtm.start': new Date().getTime(), event:'gtm.js'});
-      var f = d.getElementsByTagName(s)[0],
-          j = d.createElement(s), dl = l != 'dataLayer' ? '&l=' + l : '';
+      w[l].push({ 'gtm.start': new Date().getTime(), event: 'gtm.js' });
+      const f = d.getElementsByTagName(s)[0];
+      const j = d.createElement(s);
+      const dl = l != 'dataLayer' ? '&l=' + l : '';
       j.async = true;
-      j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+      j.src = GTM_container_url + '/gtm.js?id=' + i + dl;
       f.parentNode.insertBefore(j, f);
-    })(window, document, 'script', 'dataLayer', 'GTM-00000000');
-    */
+    })(window, document, 'script', 'dataLayer', GTM_container_id);
 
-    analytics.subscribe('payment_info_submitted', (event) => ecommerceDataLayer('add_payment_info', event));
-    analytics.subscribe('checkout_shipping_info_submitted', (event) => ecommerceDataLayer('add_shipping_info', event));
-    analytics.subscribe('checkout_shipping_address_submitted', (event) => ecommerceDataLayer('add_shipping_info', event));
-    analytics.subscribe('checkout_completed', (event) => ecommerceDataLayer('purchase', event));
+    // Subscribe to Shopify checkout events
+    analytics.subscribe('page_viewed', (event) => {
+      const eventData = { event: event_prefix + 'page_view', page_location: getPageLocation(event) };
+      window.dataLayer.push(eventData);
+      eventLog('page_view', eventData);
+    });
+
+    analytics.subscribe('checkout_shipping_address_submitted', (event) =>
+      ecommerceDataLayer('add_shipping_info', event)
+    );
+    analytics.subscribe('checkout_shipping_info_submitted', (event) =>
+      ecommerceDataLayer('add_shipping_info', event)
+    );
+    analytics.subscribe('payment_info_submitted', (event) =>
+      ecommerceDataLayer('add_payment_info', event)
+    );
+    analytics.subscribe('checkout_completed', (event) =>
+      ecommerceDataLayer('purchase', event)
+    );
   }
 };
-`;
+`);
+
 
 /* ----------------------
    Injectors
