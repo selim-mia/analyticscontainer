@@ -1448,9 +1448,15 @@ if (openBtn) {
     var shopEl = document.getElementById('shop');
     var shop = (shopEl ? shopEl.value : '').trim();
     if (!shop) { alert('Enter your shop domain first (e.g., your-store.myshopify.com)'); return; }
+
     var url = 'https://' + shop + '/admin/settings/customer_events';
     var win = window.open(url, '_blank');
-    if (!win) window.location.href = url;
+
+    if (win) {
+      try { win.opener = null; } catch(e) {}
+    } else {
+      window.location.assign(url);
+    }
   });
 }
 </script>
