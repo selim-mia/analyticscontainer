@@ -1451,8 +1451,9 @@ app.get("/admin/settings", (req, res) => {
     <p class="muted">To Enable Checkout Event.</p>
     <ol style="margin:0 0 12px 18px; line-height:1.6">
       <li>Go to <b>Settings → Customer events</b></li>
-      <li>Click <b>Add custom pixel</b></li>
+      <li>Click <b>Add custom pixel</b></li>      
       <li>Click <b>Copy custom pixel code</b> below and <b>paste</b> it into the editor</li>
+      <li>Click <b>Set GTM ID</b></li>
       <li><b>Save</b> → <b>Connect</b></li>
     </ol>
 
