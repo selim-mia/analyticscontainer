@@ -3,7 +3,25 @@ import express from "express";
 import nodeFetch from "node-fetch"; // Node 18+ has global fetch; this is a fallback
 import dotenv from "dotenv";
 dotenv.config();
+// top-এ imports (fs/path/fileURLToPath) থাকুক:
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
+// __dirname helper:
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// ✅ কপি হবে এই ফাইলের কনটেন্ট
+const PIXEL_COPY_PATH = path.join(__dirname, "payloads", "custom_pixel.js");
+
+function readPixelCopySource() {
+  try {
+    return fs.readFileSync(PIXEL_COPY_PATH, "utf8");
+  } catch (e) {
+    return "/* Pixel source not found: server/payloads/custom_pixel.js */";
+  }
+}
 const fetch = globalThis.fetch || nodeFetch;
 
 const app = express();
@@ -1355,9 +1373,13 @@ app.post("/api/pixel/enable", async (req, res) => {
 
 // 4) Serve the in-file pixel source for "Copy" button
 app.get("/api/pixel/source", (req, res) => {
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.send(CUSTOM_PIXEL_JS);
+  res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Cache-Control", "no-store, max-age=0, must-revalidate");
+  const src = readPixelCopySource();
+  res.send(src);
 });
+
 
 // ---------- Simple Embedded UI ----------
 app.get("/admin/settings", (req, res) => {
