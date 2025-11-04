@@ -1472,11 +1472,10 @@ app.get("/admin/settings", (req, res) => {
     <div id="ok-copy" class="toast ok">Copied!</div>
     <div id="err-copy" class="toast err">Copy failed.</div>
   </div>
-  <!-- NEW: tiny privacy note under the buttons -->
-<div class="muted" style="margin-top:8px">
-  <small>
-    <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
-  </small>
+  <p class="muted" style="margin-top:8px">
+  By using this app you agree to our
+  <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+</p>
 </div>
 </div>
 <script>
