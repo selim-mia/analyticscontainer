@@ -1562,6 +1562,133 @@ if (openBtn) {
 </body></html>`);
 });
 
+// ---------- APP UNINSTALL / CLEANUP WEBHOOK ----------
+// add near other app routes, before app.listen
+
+import crypto from "crypto"; // add to top imports if not present
+
+// Helper: verify webhook HMAC
+function verifyShopifyWebhook(req) {
+  // req should be the raw body buffer
+  const secret = process.env.SHOPIFY_SHARED_SECRET || "";
+  if (!secret) return false;
+  const hmacHeader = req.headers['x-shopify-hmac-sha256'] || req.headers['x-shopify-hmac-sha256'.toLowerCase()];
+  if (!hmacHeader) return false;
+  const digest = crypto.createHmac('sha256', secret).update(req.rawBody || req.body || "").digest('base64');
+  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(String(hmacHeader)));
+}
+
+// Ensure raw body is available just for webhook route (must be BEFORE json/bodyParser usage for this route)
+app.post(
+  "/webhooks/app/uninstalled",
+  express.raw({ type: "application/json", limit: "256kb" }),
+  async (req, res) => {
+    try {
+      // attach rawBody for verification
+      req.rawBody = req.body ? req.body.toString() : "";
+
+      if (!verifyShopifyWebhook(req)) {
+        return res.status(401).send("Webhook verification failed");
+      }
+
+      const payload = JSON.parse(req.rawBody || "{}");
+      const shop = req.headers["x-shopify-shop-domain"] || payload?.domain || payload?.shop_domain;
+      if (!shop || !shop.endsWith(".myshopify.com")) {
+        return res.status(400).json({ ok: false, error: "Missing shop domain" });
+      }
+
+      // For uninstall webhook we may not have access token; recommended flow:
+      // - If you store the shop's access token in DB, load it here and use it.
+      // - If you don't store it, you cannot call Admin REST. But since uninstall happens AFTER uninstall,
+      //   the token may still work for a short time — best to remove during uninstall via stored token.
+      // Here we assume you stored accessToken per shop in your DB. Replace getStoredAccessToken(shop) accordingly.
+      // ---- PLACEHOLDER: load access token from your DB/storage ----
+      const accessToken = await getStoredAccessToken(shop); // implement this to return shpat_ token or null
+
+      if (!accessToken) {
+        // If token not available: still respond 200 (Shopify retries if non-200). Log for manual cleanup.
+        console.warn("No stored access token for shop", shop, "- cannot auto-clean theme/assets");
+        return res.status(200).json({ ok: true, warning: "no_access_token" });
+      }
+
+      // 1) find main theme
+      let themeId;
+      try {
+        themeId = await getMainThemeId(shop, accessToken);
+      } catch (e) {
+        console.warn("Failed to get main theme:", e.message);
+      }
+
+      // 2) remove theme.liquid GTM blocks + render tag
+      if (themeId) {
+        try {
+          const themeKey = "layout/theme.liquid";
+          const asset = await getAsset(shop, accessToken, themeId, themeKey).catch(() => null);
+          if (asset) {
+            const orig = asset.value || Buffer.from(asset.attachment || "", "base64").toString("utf8");
+            const stripped = stripGTMAndRender(orig); // reuse helper
+            if (stripped !== orig) {
+              await putAsset(shop, accessToken, themeId, themeKey, stripped);
+            }
+          }
+        } catch (e) {
+          console.error("Failed to strip GTM from theme.liquid:", e.message);
+        }
+
+        // 3) delete snippet asset (ultimate-datalayer.liquid)
+        try {
+          await deleteAsset(shop, accessToken, themeId, "snippets/ultimate-datalayer.liquid").catch(() => {});
+        } catch (e) {
+          console.error("Failed to delete snippet:", e.message);
+        }
+      }
+
+      // 4) disable / delete custom web pixel(s) if present
+      try {
+        const API = `https://${shop}/admin/api/2025-10`;
+        const headers = {
+          "X-Shopify-Access-Token": accessToken,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        };
+        const lRes = await fetch(`${API}/web_pixels.json?limit=50`, { method: "GET", headers });
+        const lJson = await lRes.json().catch(()=>({}));
+        const pixels = lJson.web_pixels || [];
+        for (const p of pixels) {
+          // choose pixel by name if you used a fixed name, else disable all CUSTOM types
+          if ((p.type === "CUSTOM") || (p.name && p.name.toLowerCase().includes("analyticsgtm"))) {
+            // disable
+            await fetch(`${API}/web_pixels/${p.id}.json`, {
+              method: "PUT",
+              headers,
+              body: JSON.stringify({ web_pixel: { id: p.id, enabled: false } }),
+            }).catch(()=>{});
+            // optional: delete instead of disable
+            // await fetch(`${API}/web_pixels/${p.id}.json`, { method: "DELETE", headers }).catch(()=>{});
+          }
+        }
+      } catch (e) {
+        console.error("Failed to disable/delete web pixels:", e.message);
+      }
+
+      // Optionally: remove stored access token for shop from your DB
+      try {
+        await removeStoredShopData(shop); // implement according to your DB
+      } catch (e) {
+        console.warn("Failed to remove stored shop data:", e.message);
+      }
+
+      // respond success
+      res.status(200).send("ok");
+    } catch (err) {
+      console.error("Uninstall webhook error:", err);
+      // return 200 to avoid repeated retries unless you want retries
+      res.status(200).send("error");
+    }
+  }
+);
+
+
 // Small root
 app.get("/", (_req, res) => {
   res.type("html").send(`<!doctype html><meta charset="utf-8"><title>analyticsgtm</title>
