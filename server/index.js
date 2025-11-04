@@ -3,7 +3,7 @@ import express from "express";
 import nodeFetch from "node-fetch"; // Node 18+ has global fetch; this is a fallback
 import dotenv from "dotenv";
 dotenv.config();
-// top-এ imports (fs/path/fileURLToPath) থাকুক:
+// top- imports (fs/path/fileURLToPath):
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -12,7 +12,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ✅ কপি হবে এই ফাইলের কনটেন্ট
+// The contents of this file will be copied.
 const PIXEL_COPY_PATH = path.join(__dirname, "payloads", "custom_pixel.js");
 
 function readPixelCopySource() {
@@ -36,6 +36,13 @@ app.use((req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
   res.setHeader("Referrer-Policy", "no-referrer-when-downgrade");
   next();
+});
+// ---- Public static + Privacy route ----
+const PUBLIC_DIR = path.join(__dirname, "..", "public");
+app.use(express.static(PUBLIC_DIR)); // serve /public
+
+app.get("/privacy", (req, res) => {
+  res.sendFile(path.join(PUBLIC_DIR, "privacy.html"));
 });
 
 const PORT = process.env.PORT || 3000;
@@ -1465,8 +1472,13 @@ app.get("/admin/settings", (req, res) => {
     <div id="ok-copy" class="toast ok">Copied!</div>
     <div id="err-copy" class="toast err">Copy failed.</div>
   </div>
+  <!-- NEW: tiny privacy note under the buttons -->
+<div class="muted" style="margin-top:8px">
+  <small>
+    <a href="/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+  </small>
 </div>
-
+</div>
 <script>
 function toast(id, ok, msg) {
   var el = document.getElementById(id);

@@ -2,7 +2,7 @@ const event_prefix = '';
 const formattedItemId = true;
 const gclidWithPageLocation = true;
 const GTM_container_url = 'https://www.googletagmanager.com';
-const GTM_container_id = 'GTM-00000000';
+const GTM_container_id = 'GTM-XXXXXXXX';
 
 
 let storeCountryCode = window.localStorage.getItem('shopCountryCode');
