@@ -1212,7 +1212,7 @@ const UDL_SNIPPET_VALUE = raw`<script>
 
 
 /* ----------------------
-   Injectors
+   Code
    ---------------------- */
 function buildGTMBlocks(gtmId) {
   const headTag = [
@@ -1432,7 +1432,7 @@ app.get("/admin/settings", (req, res) => {
     <div style="display:flex;gap:12px;margin-top:14px">
       <button class="btn" id="btn-gtm">Enable GTM</button>
     </div>
-    <div id="ok-gtm" class="toast ok">GTM injected.</div>
+    <div id="ok-gtm" class="toast ok">GTM Generated.</div>
     <div id="err-gtm" class="toast err">Failed.</div>
   </div>
 
@@ -1442,7 +1442,7 @@ app.get("/admin/settings", (req, res) => {
     <div style="display:flex;gap:12px;margin-top:14px">
       <button class="btn" id="btn-dl">Enable DataLayer</button>
     </div>
-    <div id="ok-dl" class="toast ok">DataLayer snippet injected.</div>
+    <div id="ok-dl" class="toast ok">DataLayer snippet Generated.</div>
     <div id="err-dl" class="toast err">Failed.</div>
   </div>
 
@@ -1453,7 +1453,7 @@ app.get("/admin/settings", (req, res) => {
       <li>Go to <b>Settings → Customer events</b></li>
       <li>Click <b>Add custom pixel</b></li>      
       <li>Click <b>Copy custom pixel code</b> below and <b>paste</b> it into the editor</li>
-      <li>Click <b>Set GTM ID</b></li>
+      <li>GTM-XXXXXXXX <b>Set GTM ID</b></li>
       <li><b>Save</b> → <b>Connect</b></li>
     </ol>
 
@@ -1489,7 +1489,7 @@ if (btnGtm) {
       const r = await fetch('/api/gtm/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const j = await r.json().catch(function(){return{};});
       if(!r.ok || j.error) throw new Error(j.error || 'error');
-      toast('ok-gtm', true, 'GTM injected.');
+      toast('ok-gtm', true, 'GTM Generated.');
     } catch(e) { toast('err-gtm', false, 'Error: ' + e.message); }
   });
 }
@@ -1503,7 +1503,7 @@ if (btnDl) {
       const r = await fetch('/api/datalayer/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const j = await r.json().catch(function(){return{};});
       if(!r.ok || j.error) throw new Error(j.error || 'error');
-      toast('ok-dl', true, 'DataLayer snippet injected.');
+      toast('ok-dl', true, 'DataLayer snippet Generated.');
     } catch(e) { toast('err-dl', false, 'Error: ' + e.message); }
   });
 }
