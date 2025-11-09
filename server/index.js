@@ -1654,43 +1654,32 @@ app.get("/admin/settings", (req, res) => {
   <div class="card">
     <h1>analyticsgtm – Settings</h1>
     ${isAuthenticated ? 
-      `<p class="muted">Connected: <strong>${shop}</strong> <span class="badge badge-success">Authenticated</span></p>` :
-      `<p class="muted">Status: <span class="badge badge-warning">Not Connected</span></p>`
+      `<p class="muted">✅ Connected to: <strong>${shop}</strong></p>` :
+      `<p class="muted" style="margin-bottom:0">Configure GTM and DataLayer for your Shopify store</p>`
     }
     
-    ${!isAuthenticated ? `
-    <div class="card" style="background:#fffbeb;border-color:#fbbf24;margin-top:16px">
-      <p style="margin:0 0 12px 0"><strong>⚠️ OAuth Setup Required</strong></p>
-      <p class="muted" style="margin:0 0 12px 0">
-        For production use, install via OAuth. Enter your shop domain below and click "Install App".
-      </p>
-      <div class="row">
-        <div>
-          <label>Shop domain (myshopify.com)</label>
-          <input id="shop-oauth" type="text" placeholder="your-store.myshopify.com" value="${shop}">
-        </div>
-        <div style="display:flex;align-items:end">
-          <button class="btn" id="btn-oauth" style="width:100%">Install App via OAuth</button>
-        </div>
+    <!-- Hidden fields for shop and token - auto-filled from database -->
+    <input type="hidden" id="shop" value="${shop}">
+    <input type="hidden" id="tok" value="${shopData?.access_token || ''}">
+  </div>
+  
+  ${!isAuthenticated ? `
+  <div class="card" style="background:#fffbeb;border-color:#fbbf24">
+    <h2 style="margin:0 0 12px 0;font-size:16px">🔐 Installation Required</h2>
+    <p class="muted" style="margin:0 0 16px 0">
+      This app requires OAuth authorization. Click the button below to install and authorize the app for your store.
+    </p>
+    <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:end">
+      <div>
+        <label>Shop domain (myshopify.com)</label>
+        <input id="shop-oauth" type="text" placeholder="your-store.myshopify.com" value="${shop}">
       </div>
-    </div>
-    ` : ''}
-    
-    <div style="margin-top:16px">
-      <p class="muted"><strong>For Development/Testing:</strong> Use manual API calls below</p>
-      <div class="row">
-        <div>
-          <label>Shop domain (myshopify.com)</label>
-          <input id="shop" type="text" placeholder="your-store.myshopify.com" value="${shop}">
-        </div>
-        <div>
-          <label>Admin API Access Token <span class="muted">(shpat_… for testing)</span></label>
-          <input id="tok" type="text" placeholder="shpat_xxx">
-        </div>
-      </div>
+      <button class="btn" id="btn-oauth">Install App</button>
     </div>
   </div>
+  ` : ''}
 
+  ${isAuthenticated ? `
   <div class="card">
     <h2 class="section-title">1) Enable GTM</h2>
     <p class="muted">Adds GTM script in &lt;head&gt; and GTM noscript in &lt;body&gt;. Default: <code>${DEFAULT_GTM_ID}</code></p>
@@ -1736,6 +1725,8 @@ app.get("/admin/settings", (req, res) => {
     <div id="ok-copy" class="toast ok">Copied!</div>
     <div id="err-copy" class="toast err">Copy failed.</div>
   </div>
+  ` : ''}
+  
   <p class="muted" style="margin-top:8px">
   By using this app you agree to our
   <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
@@ -1759,7 +1750,7 @@ function val(id) {
 var btnOAuth = document.getElementById('btn-oauth');
 if (btnOAuth) {
   btnOAuth.addEventListener('click', function () {
-    var shop = val('shop-oauth') || val('shop');
+    var shop = val('shop-oauth');
     if (!shop) {
       alert('Please enter your shop domain');
       return;
