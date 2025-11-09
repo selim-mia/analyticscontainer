@@ -1,16 +1,50 @@
-// server/index.js — FINAL (uses raw template literals instead of comment-heredoc)
+// server/index.js — Production-ready with OAuth, Database, and Logging
 import express from "express";
-import nodeFetch from "node-fetch"; // Node 18+ has global fetch; this is a fallback
+import session from "express-session";
+import nodeFetch from "node-fetch";
 import dotenv from "dotenv";
+import crypto from "crypto";
 dotenv.config();
-// top- imports (fs/path/fileURLToPath):
+
+// Local imports
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
+// App modules
+import { initDatabase, getShop, saveShop, deleteShop } from "./database.js";
+import { log } from "./logger.js";
+import {
+  isValidShopDomain,
+  generateNonce,
+  buildAuthorizationUrl,
+  verifyOAuthCallback,
+  exchangeCodeForToken,
+  verifyWebhookHmac,
+  verifyApiRequest,
+} from "./oauth.js";
+
 // __dirname helper:
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Validate required environment variables
+const REQUIRED_ENV_VARS = ['SHOPIFY_API_KEY', 'SHOPIFY_API_SECRET'];
+const missing = REQUIRED_ENV_VARS.filter(v => !process.env[v]);
+if (missing.length > 0) {
+  console.error(`❌ Missing required environment variables: ${missing.join(', ')}`);
+  console.error('Please check your .env file');
+  process.exit(1);
+}
+
+// Initialize database
+try {
+  initDatabase();
+  log.info("Database initialized successfully");
+} catch (error) {
+  log.error("Failed to initialize database", error);
+  process.exit(1);
+}
 
 // The contents of this file will be copied.
 const PIXEL_COPY_PATH = path.join(__dirname, "payloads", "custom_pixel.js");
@@ -19,12 +53,39 @@ function readPixelCopySource() {
   try {
     return fs.readFileSync(PIXEL_COPY_PATH, "utf8");
   } catch (e) {
+    log.warn("Pixel source file not found", { path: PIXEL_COPY_PATH });
     return "/* Pixel source not found: server/payloads/custom_pixel.js */";
   }
 }
+
 const fetch = globalThis.fetch || nodeFetch;
 
 const app = express();
+
+// Session middleware for OAuth
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || "dev-secret-change-in-production",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === "production",
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    },
+  })
+);
+
+// Request logging middleware
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    const duration = Date.now() - start;
+    log.http(req.method, req.path, res.statusCode, duration);
+  });
+  next();
+});
+
 app.use(express.json({ limit: "512kb" }));
 
 // Allow Shopify Admin iframe (embedded UI) + a few safe headers
@@ -37,6 +98,7 @@ app.use((req, res, next) => {
   res.setHeader("Referrer-Policy", "no-referrer-when-downgrade");
   next();
 });
+
 // ---- Public static + Privacy route ----
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 app.use(express.static(PUBLIC_DIR)); // serve /public
@@ -55,6 +117,16 @@ const raw = (strings, ..._values) => strings.raw[0];
 
 // ---------- Utils ----------
 function assert(v, msg) { if (!v) throw new Error(msg); }
+
+// Error response helper
+function sendError(res, statusCode, message, details = null) {
+  log.error(message, details);
+  const response = { error: message };
+  if (details && process.env.NODE_ENV !== "production") {
+    response.details = details;
+  }
+  res.status(statusCode).json(response);
+}
 
 // Shopify Admin REST 2025-10
 async function shopifyFetch(shop, accessToken, path, opts = {}) {
@@ -108,6 +180,25 @@ async function putAsset(shop, token, themeId, key, value) {
     method: "PUT",
     body: JSON.stringify({ asset }),
   });
+}
+
+async function deleteAsset(shop, token, themeId, key) {
+  const q = encodeURIComponent(key);
+  return shopifyFetch(shop, token, `/themes/${themeId}/assets.json?asset[key]=${q}`, {
+    method: "DELETE",
+  });
+}
+
+// Helper to strip GTM and render tags from theme.liquid (for uninstall)
+function stripGTMAndRender(src) {
+  const reHeadBlock = /<!--\s*Google Tag Manager\s*-->[\s\S]*?<!--\s*End Google Tag Manager\s*-->/ig;
+  const reBodyBlock = /<!--\s*Google Tag Manager\s*\(noscript\)\s*-->[\s\S]*?<!--\s*End Google Tag Manager\s*\(noscript\)\s*-->/ig;
+  
+  src = src.replace(reHeadBlock, "");
+  src = src.replace(reBodyBlock, "");
+  src = src.replace(/\{\%\s*render\s+'ultimate-datalayer'\s*\%\}\s*/gi, "");
+  
+  return src;
 }
 
 /* -----------------------------------------
@@ -1217,6 +1308,8 @@ const UDL_SNIPPET_VALUE = raw`<script>
    2) Custom Pixel JS — Shopify Customer Events (raw template)
    ----------------------------------------------------------- */
 
+// Read custom pixel source from file
+const CUSTOM_PIXEL_JS = readPixelCopySource();
 
 /* ----------------------
    Code
@@ -1270,6 +1363,84 @@ function insertRenderAfterGTM(src) {
 }
 
 /* ----------------------
+   OAuth Routes
+   ---------------------- */
+
+// OAuth start - /auth?shop=store.myshopify.com
+app.get("/auth", (req, res) => {
+  try {
+    const shop = req.query.shop;
+    
+    if (!shop) {
+      return sendError(res, 400, "Missing shop parameter");
+    }
+    
+    if (!isValidShopDomain(shop)) {
+      return sendError(res, 400, "Invalid shop domain format");
+    }
+    
+    // Generate nonce for CSRF protection
+    const nonce = generateNonce();
+    req.session.nonce = nonce;
+    req.session.shop = shop;
+    
+    // Build OAuth URL
+    const authUrl = buildAuthorizationUrl(shop, nonce);
+    
+    log.shopify.oauth(shop, "OAuth flow started");
+    
+    res.redirect(authUrl);
+  } catch (error) {
+    log.error("OAuth start error", error);
+    sendError(res, 500, "Failed to start OAuth flow", error.message);
+  }
+});
+
+// OAuth callback - /auth/callback
+app.get("/auth/callback", async (req, res) => {
+  try {
+    const { code, shop, state, hmac } = req.query;
+    
+    // Verify nonce from session
+    const nonce = req.session.nonce;
+    if (!nonce) {
+      return sendError(res, 400, "Invalid session - please restart OAuth flow");
+    }
+    
+    // Verify OAuth callback
+    try {
+      verifyOAuthCallback(req.query, nonce);
+    } catch (error) {
+      log.error("OAuth verification failed", error, { shop });
+      return sendError(res, 403, "OAuth verification failed", error.message);
+    }
+    
+    // Exchange code for access token
+    const { accessToken, scope } = await exchangeCodeForToken(shop, code);
+    
+    // Save to database
+    const saved = saveShop(shop, accessToken, scope);
+    
+    if (!saved) {
+      log.error("Failed to save shop to database", null, { shop });
+      return sendError(res, 500, "Failed to save shop credentials");
+    }
+    
+    log.info("Shop installed successfully", { shop, scope });
+    
+    // Clear session
+    delete req.session.nonce;
+    delete req.session.shop;
+    
+    // Redirect to app settings page
+    res.redirect(`/admin/settings?shop=${encodeURIComponent(shop)}&installed=true`);
+  } catch (error) {
+    log.error("OAuth callback error", error);
+    sendError(res, 500, "OAuth callback failed", error.message);
+  }
+});
+
+/* ----------------------
    API Endpoints
    ---------------------- */
 
@@ -1277,11 +1448,22 @@ function insertRenderAfterGTM(src) {
 app.post("/api/gtm/enable", async (req, res) => {
   try {
     const { shop, accessToken, gtmId } = req.body || {};
-    assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
-    assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
+    
+    // Validate inputs
+    if (!shop || !isValidShopDomain(shop)) {
+      return sendError(res, 400, "Invalid shop domain");
+    }
+    
+    if (!accessToken || !accessToken.startsWith("shpat_")) {
+      return sendError(res, 400, "Invalid access token");
+    }
 
     const desiredId = (gtmId || DEFAULT_GTM_ID || "").trim();
-    assert(/^GTM-[A-Za-z0-9_-]+$/.test(desiredId), "Invalid GTM Container ID");
+    if (!/^GTM-[A-Za-z0-9_-]+$/.test(desiredId)) {
+      return sendError(res, 400, "Invalid GTM Container ID format");
+    }
+    
+    log.shopify.apiCall("POST", "/api/gtm/enable", shop);
 
     const themeId = await getMainThemeId(shop, accessToken);
     const themeKey = "layout/theme.liquid";
@@ -1289,11 +1471,15 @@ app.post("/api/gtm/enable", async (req, res) => {
     const orig = asset.value || Buffer.from(asset.attachment || "", "base64").toString("utf8");
 
     const patched = upsertGTMAndRender(orig, desiredId);
-    if (patched !== orig) await putAsset(shop, accessToken, themeId, themeKey, patched);
+    if (patched !== orig) {
+      await putAsset(shop, accessToken, themeId, themeKey, patched);
+      log.info("GTM injected successfully", { shop, gtmId: desiredId, themeId });
+    }
 
     res.json({ ok: true, gtmId: desiredId, themeId });
   } catch (e) {
-    res.status(400).json({ error: String(e.message) });
+    log.shopify.apiError("POST", "/api/gtm/enable", req.body?.shop, e);
+    sendError(res, 400, "Failed to enable GTM", e.message);
   }
 });
 
@@ -1301,8 +1487,16 @@ app.post("/api/gtm/enable", async (req, res) => {
 app.post("/api/datalayer/enable", async (req, res) => {
   try {
     const { shop, accessToken } = req.body || {};
-    assert(shop && shop.endsWith(".myshopify.com"), "Missing/invalid shop");
-    assert(accessToken && accessToken.startsWith("shpat_"), "Missing/invalid shpat token");
+    
+    if (!shop || !isValidShopDomain(shop)) {
+      return sendError(res, 400, "Invalid shop domain");
+    }
+    
+    if (!accessToken || !accessToken.startsWith("shpat_")) {
+      return sendError(res, 400, "Invalid access token");
+    }
+    
+    log.shopify.apiCall("POST", "/api/datalayer/enable", shop);
 
     const themeId = await getMainThemeId(shop, accessToken);
     await putAsset(shop, accessToken, themeId, "snippets/ultimate-datalayer.liquid", UDL_SNIPPET_VALUE);
@@ -1312,21 +1506,32 @@ app.post("/api/datalayer/enable", async (req, res) => {
     const orig = asset.value || Buffer.from(asset.attachment || "", "base64").toString("utf8");
 
     const patched = insertRenderAfterGTM(orig);
-    if (patched !== orig) await putAsset(shop, accessToken, themeId, themeKey, patched);
+    if (patched !== orig) {
+      await putAsset(shop, accessToken, themeId, themeKey, patched);
+      log.info("DataLayer snippet created and injected", { shop, themeId });
+    }
 
     res.json({ ok: true, themeId });
   } catch (e) {
-    res.status(400).json({ error: String(e.message) });
+    log.shopify.apiError("POST", "/api/datalayer/enable", req.body?.shop, e);
+    sendError(res, 400, "Failed to enable DataLayer", e.message);
   }
 });
 
 // 3) Create/Update Custom Web Pixel (Customer events)
 app.post("/api/pixel/enable", async (req, res) => {
-  const fail = (msg, detail) => res.status(400).json({ error: msg, detail });
   try {
     const { shop, accessToken, name = "analyticsgtm Pixel" } = req.body || {};
-    if (!shop || !shop.endsWith(".myshopify.com")) throw new Error("Missing/invalid shop");
-    if (!accessToken || !accessToken.startsWith("shpat_")) throw new Error("Missing/invalid shpat token");
+    
+    if (!shop || !isValidShopDomain(shop)) {
+      return sendError(res, 400, "Invalid shop domain");
+    }
+    
+    if (!accessToken || !accessToken.startsWith("shpat_")) {
+      return sendError(res, 400, "Invalid access token");
+    }
+    
+    log.shopify.apiCall("POST", "/api/pixel/enable", shop);
 
     const API = `https://${shop}/admin/api/2025-10`;
     const headers = {
@@ -1338,19 +1543,23 @@ app.post("/api/pixel/enable", async (req, res) => {
     // Probe
     const probe = await fetch(`${API}/web_pixels.json?limit=1`, { method: "GET", headers });
     if (probe.status === 401 || probe.status === 403) {
-      return fail("Unauthorized: token invalid or missing scopes.",
-        "Grant read_pixels, write_pixels (optional read_custom_pixels, write_custom_pixels) and reinstall the app.");
+      return sendError(res, 403, "Unauthorized: token invalid or missing scopes",
+        "Grant read_pixels, write_pixels and reinstall the app");
     }
     if (probe.status === 404 || probe.status === 405) {
-      return fail("Web Pixels REST not available on this store/API.",
-        "Create once in Admin → Settings → Customer events → Add custom pixel, then click Enable again to update.");
+      return sendError(res, 404, "Web Pixels REST not available on this store/API",
+        "Create once in Admin → Settings → Customer events → Add custom pixel");
     }
 
     // Try create
     const createBody = { web_pixel: { name, enabled: true, settings: "{}", javascript: CUSTOM_PIXEL_JS } };
     const cRes = await fetch(`${API}/web_pixels.json`, { method: "POST", headers, body: JSON.stringify(createBody) });
     const cJson = await cRes.json().catch(() => ({}));
-    if (cRes.ok) return res.json({ ok: true, mode: "created", pixel: cJson.web_pixel });
+    
+    if (cRes.ok) {
+      log.info("Custom pixel created", { shop, pixelName: name });
+      return res.json({ ok: true, mode: "created", pixel: cJson.web_pixel });
+    }
 
     // Fallback update
     const lRes = await fetch(`${API}/web_pixels.json`, { method: "GET", headers });
@@ -1360,8 +1569,8 @@ app.post("/api/pixel/enable", async (req, res) => {
       (lJson.web_pixels || [])[0];
 
     if (!existing) {
-      return fail(`Create failed (${cRes.status})`,
-        cJson?.errors || cJson || "No pixel to update. Create one manually once, then retry.");
+      return sendError(res, 400, `Create failed (${cRes.status})`,
+        cJson?.errors || cJson || "No pixel to update. Create one manually once, then retry");
     }
 
     const updBody = {
@@ -1372,10 +1581,17 @@ app.post("/api/pixel/enable", async (req, res) => {
       method: "PUT", headers, body: JSON.stringify(updBody)
     });
     const uJson = await uRes.json().catch(() => ({}));
-    if (!uRes.ok) return fail(`Update failed (${uRes.status})`, uJson?.errors || uJson || "No details");
-
+    
+    if (!uRes.ok) {
+      return sendError(res, 400, `Update failed (${uRes.status})`, uJson?.errors || uJson || "No details");
+    }
+    
+    log.info("Custom pixel updated", { shop, pixelName: name });
     res.json({ ok: true, mode: "updated", pixel: uJson.web_pixel });
-  } catch (e) { res.status(400).json({ error: String(e.message) }); }
+  } catch (e) {
+    log.shopify.apiError("POST", "/api/pixel/enable", req.body?.shop, e);
+    sendError(res, 400, "Failed to enable pixel", e.message);
+  }
 });
 
 // 4) Serve the in-file pixel source for "Copy" button
@@ -1390,7 +1606,20 @@ app.get("/api/pixel/source", (req, res) => {
 
 // ---------- Simple Embedded UI ----------
 app.get("/admin/settings", (req, res) => {
-  const shop = req.query.shop || process.env.SHOP || "";
+  const shop = req.query.shop || "";
+  const installed = req.query.installed === "true";
+  
+  // Check if shop is in database
+  let shopData = null;
+  let isAuthenticated = false;
+  if (shop && isValidShopDomain(shop)) {
+    shopData = getShop(shop);
+    isAuthenticated = !!shopData;
+  }
+  
+  const successMessage = installed ? 
+    `<div class="toast ok" style="display:block">✅ App installed successfully! You can now configure GTM and DataLayer below.</div>` : '';
+  
   res.type("html").send(`<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -1404,63 +1633,98 @@ app.get("/admin/settings", (req, res) => {
   input[type=text]{width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:10px}
   .row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px}
   .btn{appearance:none;border:0;background:#111827;color:#fff;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+  .btn:hover{background:#374151}
+  .btn-secondary{background:#6b7280}
+  .btn-secondary:hover{background:#4b5563}
   .muted{color:#6b7280;font-size:12px}
   .toast{padding:10px 12px;border-radius:8px;margin-top:10px;display:none}
   .ok{background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46}
   .err{background:#fef2f2;border:1px solid #fecaca;color:#991b1b}
+  .info{background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af}
   .section-title{font-size:18px;margin:0 0 8px 0}
+  .badge{display:inline-block;padding:4px 8px;border-radius:6px;font-size:11px;font-weight:600}
+  .badge-success{background:#d1fae5;color:#065f46}
+  .badge-warning{background:#fef3c7;color:#92400e}
 </style>
 </head>
 <body>
 <div class="wrap">
+  ${successMessage}
+  
   <div class="card">
     <h1>analyticsgtm – Settings</h1>
-    <div class="row">
-      <div>
-        <label>Shop domain (myshopify.com)</label>
-        <input id="shop" type="text" placeholder="your-store.myshopify.com" value="${shop}">
+    ${isAuthenticated ? 
+      `<p class="muted">Connected: <strong>${shop}</strong> <span class="badge badge-success">Authenticated</span></p>` :
+      `<p class="muted">Status: <span class="badge badge-warning">Not Connected</span></p>`
+    }
+    
+    ${!isAuthenticated ? `
+    <div class="card" style="background:#fffbeb;border-color:#fbbf24;margin-top:16px">
+      <p style="margin:0 0 12px 0"><strong>⚠️ OAuth Setup Required</strong></p>
+      <p class="muted" style="margin:0 0 12px 0">
+        For production use, install via OAuth. Enter your shop domain below and click "Install App".
+      </p>
+      <div class="row">
+        <div>
+          <label>Shop domain (myshopify.com)</label>
+          <input id="shop-oauth" type="text" placeholder="your-store.myshopify.com" value="${shop}">
+        </div>
+        <div style="display:flex;align-items:end">
+          <button class="btn" id="btn-oauth" style="width:100%">Install App via OAuth</button>
+        </div>
       </div>
-      <div>
-        <label>Admin API Access Token <span class="muted">(shpat_… dev test)</span></label>
-        <input id="tok" type="text" placeholder="shpat_xxx">
+    </div>
+    ` : ''}
+    
+    <div style="margin-top:16px">
+      <p class="muted"><strong>For Development/Testing:</strong> Use manual API calls below</p>
+      <div class="row">
+        <div>
+          <label>Shop domain (myshopify.com)</label>
+          <input id="shop" type="text" placeholder="your-store.myshopify.com" value="${shop}">
+        </div>
+        <div>
+          <label>Admin API Access Token <span class="muted">(shpat_… for testing)</span></label>
+          <input id="tok" type="text" placeholder="shpat_xxx">
+        </div>
       </div>
     </div>
   </div>
 
   <div class="card">
     <h2 class="section-title">1) Enable GTM</h2>
-    <p class="muted">Adds GTM script in &lt;head&gt; and GTM noscript in &lt;body&gt; start. Default: <code>${DEFAULT_GTM_ID}</code></p>
+    <p class="muted">Adds GTM script in &lt;head&gt; and GTM noscript in &lt;body&gt;. Default: <code>${DEFAULT_GTM_ID}</code></p>
     <div class="row">
       <div>
         <label>GTM Container ID</label>
-        <input id="gtm" type="text" placeholder="GTM-XXXXXXX">
+        <input id="gtm" type="text" placeholder="GTM-XXXXXXX" value="${DEFAULT_GTM_ID}">
       </div>
     </div>
     <div style="display:flex;gap:12px;margin-top:14px">
       <button class="btn" id="btn-gtm">Enable GTM</button>
     </div>
-    <div id="ok-gtm" class="toast ok">GTM Generated.</div>
-    <div id="err-gtm" class="toast err">Failed.</div>
+    <div id="ok-gtm" class="toast ok"></div>
+    <div id="err-gtm" class="toast err"></div>
   </div>
 
   <div class="card">
     <h2 class="section-title">2) Enable DataLayer</h2>
-    <p class="muted">Creates <code>snippets/ultimate-datalayer.liquid</code> and renders it in &lt;head&gt; (immediately after GTM head end if present).</p>
+    <p class="muted">Creates <code>snippets/ultimate-datalayer.liquid</code> and renders it in &lt;head&gt;.</p>
     <div style="display:flex;gap:12px;margin-top:14px">
       <button class="btn" id="btn-dl">Enable DataLayer</button>
     </div>
-    <div id="ok-dl" class="toast ok">DataLayer snippet Generated.</div>
-    <div id="err-dl" class="toast err">Failed.</div>
+    <div id="ok-dl" class="toast ok"></div>
+    <div id="err-dl" class="toast err"></div>
   </div>
 
   <div class="card">
     <h2 class="section-title">3) Manual install — Custom Pixel (Customer events)</h2>
-    <p class="muted">To Enable Checkout Event.</p>
+    <p class="muted">To Enable Checkout Event tracking.</p>
     <ol style="margin:0 0 12px 18px; line-height:1.6">
       <li>Go to <b>Settings → Customer events</b></li>
       <li>Click <b>Add custom pixel</b></li>      
       <li>Click <b>Copy custom pixel code</b> below and <b>paste</b> it into the editor</li>
-      <li>GTM-XXXXXXXX <b>Set GTM ID</b></li>
+      <li><b>Update GTM_container_id</b> with your GTM ID (line 5)</li>
       <li><b>Save</b> → <b>Connect</b></li>
     </ol>
 
@@ -1489,6 +1753,22 @@ function toast(id, ok, msg) {
 function val(id) {
   var el = document.getElementById(id);
   return (el ? el.value : '').trim();
+}
+
+// --- OAuth Install ---
+var btnOAuth = document.getElementById('btn-oauth');
+if (btnOAuth) {
+  btnOAuth.addEventListener('click', function () {
+    var shop = val('shop-oauth') || val('shop');
+    if (!shop) {
+      alert('Please enter your shop domain');
+      return;
+    }
+    if (!shop.endsWith('.myshopify.com')) {
+      shop = shop + '.myshopify.com';
+    }
+    window.location.href = '/auth?shop=' + encodeURIComponent(shop);
+  });
 }
 
 // --- GTM ---
@@ -1563,87 +1843,81 @@ if (openBtn) {
 });
 
 // ---------- APP UNINSTALL / CLEANUP WEBHOOK ----------
-// add near other app routes, before app.listen
 
-import crypto from "crypto"; // add to top imports if not present
-
-// Helper: verify webhook HMAC
-function verifyShopifyWebhook(req) {
-  // req should be the raw body buffer
-  const secret = process.env.SHOPIFY_SHARED_SECRET || "";
-  if (!secret) return false;
-  const hmacHeader = req.headers['x-shopify-hmac-sha256'] || req.headers['x-shopify-hmac-sha256'.toLowerCase()];
-  if (!hmacHeader) return false;
-  const digest = crypto.createHmac('sha256', secret).update(req.rawBody || req.body || "").digest('base64');
-  return crypto.timingSafeEqual(Buffer.from(digest), Buffer.from(String(hmacHeader)));
-}
-
-// Ensure raw body is available just for webhook route (must be BEFORE json/bodyParser usage for this route)
+// Ensure raw body is available just for webhook route
 app.post(
   "/webhooks/app/uninstalled",
   express.raw({ type: "application/json", limit: "256kb" }),
   async (req, res) => {
     try {
-      // attach rawBody for verification
+      // Attach rawBody for verification
       req.rawBody = req.body ? req.body.toString() : "";
 
-      if (!verifyShopifyWebhook(req)) {
+      // Verify webhook HMAC
+      const hmacHeader = req.headers["x-shopify-hmac-sha256"];
+      if (!verifyWebhookHmac(req.rawBody, hmacHeader)) {
+        log.warn("Webhook verification failed", { hmac: !!hmacHeader });
         return res.status(401).send("Webhook verification failed");
       }
 
       const payload = JSON.parse(req.rawBody || "{}");
       const shop = req.headers["x-shopify-shop-domain"] || payload?.domain || payload?.shop_domain;
-      if (!shop || !shop.endsWith(".myshopify.com")) {
-        return res.status(400).json({ ok: false, error: "Missing shop domain" });
+      
+      if (!shop || !isValidShopDomain(shop)) {
+        log.warn("Invalid shop domain in webhook", { shop });
+        return res.status(400).json({ ok: false, error: "Invalid shop domain" });
       }
 
-      // For uninstall webhook we may not have access token; recommended flow:
-      // - If you store the shop's access token in DB, load it here and use it.
-      // - If you don't store it, you cannot call Admin REST. But since uninstall happens AFTER uninstall,
-      //   the token may still work for a short time — best to remove during uninstall via stored token.
-      // Here we assume you stored accessToken per shop in your DB. Replace getStoredAccessToken(shop) accordingly.
-      // ---- PLACEHOLDER: load access token from your DB/storage ----
-      const accessToken = await getStoredAccessToken(shop); // implement this to return shpat_ token or null
+      log.shopify.webhook("app/uninstalled", shop);
 
-      if (!accessToken) {
-        // If token not available: still respond 200 (Shopify retries if non-200). Log for manual cleanup.
-        console.warn("No stored access token for shop", shop, "- cannot auto-clean theme/assets");
+      // Load access token from database
+      const shopData = getShop(shop);
+      
+      if (!shopData || !shopData.access_token) {
+        log.warn("No stored access token for shop - cannot auto-clean", { shop });
+        // Still respond 200 to prevent Shopify retries
         return res.status(200).json({ ok: true, warning: "no_access_token" });
       }
 
-      // 1) find main theme
+      const accessToken = shopData.access_token;
+
+      // 1) Find main theme
       let themeId;
       try {
         themeId = await getMainThemeId(shop, accessToken);
       } catch (e) {
-        console.warn("Failed to get main theme:", e.message);
+        log.warn("Failed to get main theme", e, { shop });
       }
 
-      // 2) remove theme.liquid GTM blocks + render tag
+      // 2) Remove theme.liquid GTM blocks + render tag
       if (themeId) {
         try {
           const themeKey = "layout/theme.liquid";
           const asset = await getAsset(shop, accessToken, themeId, themeKey).catch(() => null);
+          
           if (asset) {
             const orig = asset.value || Buffer.from(asset.attachment || "", "base64").toString("utf8");
-            const stripped = stripGTMAndRender(orig); // reuse helper
+            const stripped = stripGTMAndRender(orig);
+            
             if (stripped !== orig) {
               await putAsset(shop, accessToken, themeId, themeKey, stripped);
+              log.info("GTM blocks removed from theme.liquid", { shop, themeId });
             }
           }
         } catch (e) {
-          console.error("Failed to strip GTM from theme.liquid:", e.message);
+          log.error("Failed to strip GTM from theme.liquid", e, { shop });
         }
 
-        // 3) delete snippet asset (ultimate-datalayer.liquid)
+        // 3) Delete snippet asset (ultimate-datalayer.liquid)
         try {
-          await deleteAsset(shop, accessToken, themeId, "snippets/ultimate-datalayer.liquid").catch(() => {});
+          await deleteAsset(shop, accessToken, themeId, "snippets/ultimate-datalayer.liquid");
+          log.info("DataLayer snippet deleted", { shop, themeId });
         } catch (e) {
-          console.error("Failed to delete snippet:", e.message);
+          log.warn("Failed to delete snippet", e, { shop });
         }
       }
 
-      // 4) disable / delete custom web pixel(s) if present
+      // 4) Disable / delete custom web pixel(s) if present
       try {
         const API = `https://${shop}/admin/api/2025-10`;
         const headers = {
@@ -1651,39 +1925,44 @@ app.post(
           "Content-Type": "application/json",
           Accept: "application/json",
         };
+        
         const lRes = await fetch(`${API}/web_pixels.json?limit=50`, { method: "GET", headers });
-        const lJson = await lRes.json().catch(()=>({}));
+        const lJson = await lRes.json().catch(() => ({}));
         const pixels = lJson.web_pixels || [];
+        
         for (const p of pixels) {
-          // choose pixel by name if you used a fixed name, else disable all CUSTOM types
+          // Disable pixels by name or type
           if ((p.type === "CUSTOM") || (p.name && p.name.toLowerCase().includes("analyticsgtm"))) {
-            // disable
+            // Disable the pixel
             await fetch(`${API}/web_pixels/${p.id}.json`, {
               method: "PUT",
               headers,
               body: JSON.stringify({ web_pixel: { id: p.id, enabled: false } }),
-            }).catch(()=>{});
-            // optional: delete instead of disable
-            // await fetch(`${API}/web_pixels/${p.id}.json`, { method: "DELETE", headers }).catch(()=>{});
+            }).catch(() => {});
+            
+            log.info("Custom pixel disabled", { shop, pixelId: p.id, pixelName: p.name });
           }
         }
       } catch (e) {
-        console.error("Failed to disable/delete web pixels:", e.message);
+        log.error("Failed to disable web pixels", e, { shop });
       }
 
-      // Optionally: remove stored access token for shop from your DB
+      // 5) Remove shop from database
       try {
-        await removeStoredShopData(shop); // implement according to your DB
+        const deleted = deleteShop(shop);
+        if (deleted) {
+          log.info("Shop removed from database", { shop });
+        }
       } catch (e) {
-        console.warn("Failed to remove stored shop data:", e.message);
+        log.error("Failed to remove shop from database", e, { shop });
       }
 
-      // respond success
-      res.status(200).send("ok");
+      // Respond success
+      res.status(200).json({ ok: true, shop });
     } catch (err) {
-      console.error("Uninstall webhook error:", err);
-      // return 200 to avoid repeated retries unless you want retries
-      res.status(200).send("error");
+      log.error("Uninstall webhook error", err);
+      // Return 200 to avoid repeated retries
+      res.status(200).json({ ok: false, error: "internal_error" });
     }
   }
 );
@@ -1695,4 +1974,8 @@ app.get("/", (_req, res) => {
   <h1>analyticsgtm</h1><p><a href="/admin/settings">Open Settings UI</a></p>`);
 });
 
-app.listen(PORT, () => console.log(`analyticsgtm running on :${PORT}`));
+app.listen(PORT, () => {
+  log.info(`analyticsgtm server running on port ${PORT}`);
+  console.log(`✅ Server: http://localhost:${PORT}`);
+  console.log(`📊 Settings UI: http://localhost:${PORT}/admin/settings`);
+});
