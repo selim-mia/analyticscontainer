@@ -5,7 +5,7 @@ import { log } from "./logger.js";
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
 const SCOPES = process.env.SCOPES || "write_themes,read_themes";
-const HOST = process.env.HOST || "http://localhost:3000";
+const HOST = process.env.HOST || process.env.RENDER_EXTERNAL_URL || "https://analyticsgtm.onrender.com";
 
 // Validate shop domain
 export function isValidShopDomain(shop) {
