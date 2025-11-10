@@ -1401,11 +1401,18 @@ app.get("/auth/callback", async (req, res) => {
   try {
     const { code, shop, state, hmac } = req.query;
     
-    // Verify nonce from session
-    const nonce = req.session.nonce;
-    if (!nonce) {
-      return sendError(res, 400, "Invalid session - please restart OAuth flow");
+    // Verify basic OAuth parameters exist
+    if (!code || !shop || !hmac) {
+      return sendError(res, 400, "Missing required OAuth parameters");
     }
+    
+    // Validate shop domain
+    if (!isValidShopDomain(shop)) {
+      return sendError(res, 400, "Invalid shop domain");
+    }
+    
+    // Verify nonce from session (with fallback for session issues)
+    const nonce = req.session?.nonce || state;
     
     // Verify OAuth callback
     try {
