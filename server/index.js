@@ -1965,6 +1965,23 @@ app.get("/", (_req, res) => {
   <h1>analyticsgtm</h1><p><a href="/admin/settings">Open Settings UI</a></p>`);
 });
 
+// Debug endpoint to check OAuth URL generation
+app.get("/debug/oauth-url", (req, res) => {
+  const shop = req.query.shop || "test-store.myshopify.com";
+  const testNonce = "test-nonce-123";
+  const authUrl = buildAuthorizationUrl(shop, testNonce);
+  res.json({
+    shop,
+    nonce: testNonce,
+    generatedAuthUrl: authUrl,
+    envVars: {
+      HOST: process.env.HOST || "not set",
+      RENDER_EXTERNAL_URL: process.env.RENDER_EXTERNAL_URL || "not set",
+      NODE_ENV: process.env.NODE_ENV || "not set"
+    }
+  });
+});
+
 app.listen(PORT, () => {
   log.info(`analyticsgtm server running on port ${PORT}`);
   console.log(`✅ Server: http://localhost:${PORT}`);
