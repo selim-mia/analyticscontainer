@@ -1439,8 +1439,27 @@ app.get("/auth/callback", async (req, res) => {
     delete req.session.nonce;
     delete req.session.shop;
     
-    // Redirect to app settings page
-    res.redirect(`/admin/settings?shop=${encodeURIComponent(shop)}&installed=true`);
+    // Close popup and refresh parent window
+    res.type("html").send(`<!doctype html>
+<html><head><meta charset="utf-8"><title>Installation Complete</title></head>
+<body>
+<script>
+  try {
+    // Refresh parent window with success message
+    if (window.opener) {
+      window.opener.location.href = '/admin/settings?shop=${encodeURIComponent(shop)}&installed=true';
+      window.close();
+    } else {
+      // Fallback if no opener (direct navigation)
+      window.location.href = '/admin/settings?shop=${encodeURIComponent(shop)}&installed=true';
+    }
+  } catch(e) {
+    // Fallback
+    window.location.href = '/admin/settings?shop=${encodeURIComponent(shop)}&installed=true';
+  }
+</script>
+<p>Installation successful! Redirecting...</p>
+</body></html>`);
   } catch (error) {
     log.error("OAuth callback error", error);
     sendError(res, 500, "OAuth callback failed", error.message);
