@@ -1758,7 +1758,23 @@ if (btnOAuth) {
     if (!shop.endsWith('.myshopify.com')) {
       shop = shop + '.myshopify.com';
     }
-    window.location.href = '/auth?shop=' + encodeURIComponent(shop);
+    
+    // Open OAuth in popup window to avoid iframe issues
+    var authUrl = '/auth?shop=' + encodeURIComponent(shop);
+    var width = 600;
+    var height = 700;
+    var left = (screen.width - width) / 2;
+    var top = (screen.height - height) / 2;
+    var popup = window.open(
+      authUrl, 
+      'shopify-oauth',
+      'width=' + width + ',height=' + height + ',left=' + left + ',top=' + top + ',toolbar=no,location=no,status=no,menubar=no,scrollbars=yes,resizable=yes'
+    );
+    
+    // Fallback if popup blocked
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      window.location.href = authUrl;
+    }
   });
 }
 
