@@ -5,7 +5,10 @@ import { log } from "./logger.js";
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
 const SCOPES = process.env.SCOPES || "write_themes,read_themes";
-const HOST = process.env.HOST || process.env.RENDER_EXTERNAL_URL || "https://analyticsgtm.onrender.com";
+
+// Use RENDER_EXTERNAL_URL in production, fallback to hardcoded production URL
+// This ensures localhost HOST env var doesn't break production OAuth
+const HOST = process.env.RENDER_EXTERNAL_URL || "https://analyticsgtm.onrender.com";
 
 // Validate shop domain
 export function isValidShopDomain(shop) {
