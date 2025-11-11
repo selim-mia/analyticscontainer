@@ -46,6 +46,16 @@ try {
   process.exit(1);
 }
 
+// Log OAuth configuration
+const OAUTH_HOST = process.env.RENDER_EXTERNAL_URL || process.env.HOST || "https://analyticsgtm.onrender.com";
+console.log(`🔗 OAuth Redirect URL: ${OAUTH_HOST}/auth/callback`);
+log.info("OAuth configuration", { 
+  host: OAUTH_HOST, 
+  redirectUri: `${OAUTH_HOST}/auth/callback`,
+  renderExternalUrl: process.env.RENDER_EXTERNAL_URL || 'not set',
+  hostEnv: process.env.HOST || 'not set'
+});
+
 // The contents of this file will be copied.
 const PIXEL_COPY_PATH = path.join(__dirname, "payloads", "custom_pixel.js");
 
