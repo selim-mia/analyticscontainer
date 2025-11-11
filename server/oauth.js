@@ -6,13 +6,8 @@ const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
 const SCOPES = process.env.SCOPES || "write_themes,read_themes";
 
-// Use HOST from environment variable (required in production)
-const HOST = process.env.HOST || process.env.RENDER_EXTERNAL_URL;
-if (!HOST) {
-  console.error("❌ ERROR: HOST environment variable is required");
-  console.error("Set HOST=https://your-app-url.com in Render environment variables");
-  process.exit(1);
-}
+// Use RENDER_EXTERNAL_URL (automatically provided by Render) or fallback to HOST
+const HOST = process.env.RENDER_EXTERNAL_URL || process.env.HOST || "https://analyticsgtm.onrender.com";
 
 // Validate shop domain
 export function isValidShopDomain(shop) {
