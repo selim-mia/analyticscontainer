@@ -1518,20 +1518,19 @@ app.get("/auth/callback", async (req, res) => {
 // 1) Enable GTM
 app.post("/api/gtm/enable", async (req, res) => {
   try {
-    const { shop, gtmId } = req.body || {};
+    const { shop, gtmId, accessToken: accessTokenFromBody } = req.body || {};
     
     // Validate inputs
     if (!shop || !isValidShopDomain(shop)) {
       return sendError(res, 400, "Invalid shop domain");
     }
     
-    // Get access token from database
+    // Get access token: prefer request body (compat mode), else database
     const shopData = getShop(shop);
-    if (!shopData || !shopData.access_token) {
-      return sendError(res, 401, "Shop not authenticated. Please install the app first.");
+    const accessToken = accessTokenFromBody || shopData?.access_token;
+    if (!accessToken) {
+      return sendError(res, 401, "Missing access token. Install the app or pass accessToken in request body.");
     }
-    
-    const accessToken = shopData.access_token;
 
     const desiredId = (gtmId || DEFAULT_GTM_ID || "").trim();
     if (!/^GTM-[A-Za-z0-9_-]+$/.test(desiredId)) {
@@ -1540,7 +1539,7 @@ app.post("/api/gtm/enable", async (req, res) => {
     
     log.shopify.apiCall("POST", "/api/gtm/enable", shop);
 
-    const themeId = await getMainThemeId(shop, accessToken);
+  const themeId = await getMainThemeId(shop, accessToken);
     const themeKey = "layout/theme.liquid";
     const asset = await getAsset(shop, accessToken, themeId, themeKey);
     const orig = asset.value || Buffer.from(asset.attachment || "", "base64").toString("utf8");
@@ -1561,23 +1560,22 @@ app.post("/api/gtm/enable", async (req, res) => {
 // 2) Enable DataLayer
 app.post("/api/datalayer/enable", async (req, res) => {
   try {
-    const { shop } = req.body || {};
+    const { shop, accessToken: accessTokenFromBody } = req.body || {};
     
     if (!shop || !isValidShopDomain(shop)) {
       return sendError(res, 400, "Invalid shop domain");
     }
     
-    // Get access token from database
+    // Get access token: prefer request body (compat mode), else database
     const shopData = getShop(shop);
-    if (!shopData || !shopData.access_token) {
-      return sendError(res, 401, "Shop not authenticated. Please install the app first.");
+    const accessToken = accessTokenFromBody || shopData?.access_token;
+    if (!accessToken) {
+      return sendError(res, 401, "Missing access token. Install the app or pass accessToken in request body.");
     }
-    
-    const accessToken = shopData.access_token;
     
     log.shopify.apiCall("POST", "/api/datalayer/enable", shop);
 
-    const themeId = await getMainThemeId(shop, accessToken);
+  const themeId = await getMainThemeId(shop, accessToken);
     await putAsset(shop, accessToken, themeId, "snippets/ultimate-datalayer.liquid", UDL_SNIPPET_VALUE);
 
     const themeKey = "layout/theme.liquid";
@@ -1600,19 +1598,18 @@ app.post("/api/datalayer/enable", async (req, res) => {
 // 3) Create/Update Custom Web Pixel (Customer events)
 app.post("/api/pixel/enable", async (req, res) => {
   try {
-    const { shop, name = "analyticsgtm Pixel" } = req.body || {};
+    const { shop, name = "analyticsgtm Pixel", accessToken: accessTokenFromBody } = req.body || {};
     
     if (!shop || !isValidShopDomain(shop)) {
       return sendError(res, 400, "Invalid shop domain");
     }
     
-    // Get access token from database
+    // Get access token: prefer request body (compat mode), else database
     const shopData = getShop(shop);
-    if (!shopData || !shopData.access_token) {
-      return sendError(res, 401, "Shop not authenticated. Please install the app first.");
+    const accessToken = accessTokenFromBody || shopData?.access_token;
+    if (!accessToken) {
+      return sendError(res, 401, "Missing access token. Install the app or pass accessToken in request body.");
     }
-    
-    const accessToken = shopData.access_token;
     
     log.shopify.apiCall("POST", "/api/pixel/enable", shop);
 
