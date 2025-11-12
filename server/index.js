@@ -22,6 +22,8 @@ import {
   exchangeCodeForToken,
   verifyWebhookHmac,
   verifyApiRequest,
+  USE_LEGACY_INSTALL_FLOW,
+  getRequestedScopes,
 } from "./oauth.js";
 
 // __dirname helper:
@@ -54,6 +56,10 @@ log.info("OAuth configuration", {
   redirectUri: `${OAUTH_HOST}/auth/callback`,
   renderExternalUrl: process.env.RENDER_EXTERNAL_URL || 'not set',
   hostEnv: process.env.HOST || 'not set'
+});
+log.info("OAuth scopes configuration", {
+  requestedScopes: getRequestedScopes(),
+  legacyInstallFlow: USE_LEGACY_INSTALL_FLOW,
 });
 
 // The contents of this file will be copied.
@@ -160,8 +166,14 @@ async function shopifyFetch(shop, accessToken, path, opts = {}) {
       log.error(`Shopify API failed: ${opts.method || 'GET'} ${path}`, { 
         shop, 
         status: res.status, 
-        error: errorText 
+        error: errorText,
+        url
       });
+      if (res.status === 404 && /\/themes\/.+\/assets\.json/i.test(path)) {
+        throw new Error(
+          "Theme asset endpoint returned 404. Likely causes: missing write permissions (write_themes or write_theme_code), invalid key, or theme unavailable."
+        );
+      }
       throw new Error(`Shopify ${res.status} ${errorText}`);
     }
     return res.json();
@@ -1453,6 +1465,15 @@ app.get("/auth/callback", async (req, res) => {
     }
     
     log.info("Shop installed successfully", { shop, scope });
+    // Warn if required scopes are missing
+    try {
+      const required = ["read_themes", "write_themes"]; // minimum for theme ops
+      const granted = (scope || "").split(",").map(s => s.trim()).filter(Boolean);
+      const missingReq = required.filter(s => !granted.includes(s));
+      if (missingReq.length) {
+        log.warn("Granted scopes missing required permissions", { shop, granted, missing: missingReq });
+      }
+    } catch (_) {}
     
     // Clear session
     delete req.session.nonce;
@@ -2073,6 +2094,35 @@ app.get("/debug/clear-shop", (req, res) => {
     res.json({ ok: false, error: error.message });
   }
 });
+
+// Debug endpoint: fetch granted access scopes from Shopify Admin (GraphQL alternative: appInstallation query)
+app.get("/debug/access_scopes", async (req, res) => {
+  const shop = req.query.shop;
+  if (!shop || !isValidShopDomain(shop)) {
+    return res.status(400).json({ ok: false, error: "Provide ?shop=your-store.myshopify.com" });
+  }
+  const shopData = getShop(shop);
+  if (!shopData || !shopData.access_token) {
+    return res.status(404).json({ ok: false, error: "No stored access token for this shop" });
+  }
+  try {
+    const url = `https://${shop}/admin/oauth/access_scopes.json`;
+    const r = await fetch(url, {
+      method: "GET",
+      headers: {
+        "X-Shopify-Access-Token": shopData.access_token,
+        Accept: "application/json"
+      }
+    });
+    const json = await r.json().catch(() => ({}));
+    res.status(r.status).json({ ok: r.ok, status: r.status, scopes: json.access_scopes || [], raw: json });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Health endpoint
+app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
 app.listen(PORT, () => {
   log.info(`analyticsgtm server running on port ${PORT}`);

@@ -4,7 +4,8 @@ import { log } from "./logger.js";
 
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
-const SCOPES = process.env.SCOPES || "read_themes,write_themes";
+const SCOPES = process.env.SCOPES || "read_themes,write_themes,read_theme_code,write_theme_code";
+export const USE_LEGACY_INSTALL_FLOW = process.env.USE_LEGACY_INSTALL_FLOW === "true";
 
 // Use RENDER_EXTERNAL_URL (automatically provided by Render) or fallback to HOST
 const HOST = process.env.RENDER_EXTERNAL_URL || process.env.HOST || "https://analyticsgtm.onrender.com";
@@ -30,10 +31,13 @@ export function buildAuthorizationUrl(shop, nonce) {
   
   const params = new URLSearchParams({
     client_id: SHOPIFY_API_KEY,
-    scope: SCOPES,
     redirect_uri: redirectUri,
     state: nonce,
   });
+  // Only include scopes in the OAuth URL when explicitly using the legacy flow.
+  if (USE_LEGACY_INSTALL_FLOW) {
+    params.set("scope", SCOPES);
+  }
   
   return `${authUrl}?${params.toString()}`;
 }
@@ -148,9 +152,18 @@ export function verifyApiRequest(shop, accessToken) {
     throw new Error("Invalid shop domain");
   }
   
-  if (!accessToken || !accessToken.startsWith("shpat_")) {
+  // Accept both offline (shpat_) and user (shpua_) tokens
+  if (
+    !accessToken ||
+    !(accessToken.startsWith("shpat_") || accessToken.startsWith("shpua_"))
+  ) {
     throw new Error("Invalid access token format");
   }
   
   return true;
+}
+
+// Expose effective requested scopes for diagnostics
+export function getRequestedScopes() {
+  return SCOPES;
 }
