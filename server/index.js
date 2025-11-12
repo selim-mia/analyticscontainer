@@ -141,6 +141,7 @@ function sendError(res, statusCode, message, details = null) {
 // Shopify Admin REST 2025-10
 async function shopifyFetch(shop, accessToken, path, opts = {}) {
   const url = `https://${shop}/admin/api/2025-10${path}`;
+  log.info(`Shopify API Request: ${opts.method || 'GET'} ${path}`, { shop });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 25000);
   try {
@@ -154,7 +155,15 @@ async function shopifyFetch(shop, accessToken, path, opts = {}) {
       },
       signal: controller.signal,
     });
-    if (!res.ok) throw new Error(`Shopify ${res.status} ${await res.text()}`);
+    if (!res.ok) {
+      const errorText = await res.text();
+      log.error(`Shopify API failed: ${opts.method || 'GET'} ${path}`, { 
+        shop, 
+        status: res.status, 
+        error: errorText 
+      });
+      throw new Error(`Shopify ${res.status} ${errorText}`);
+    }
     return res.json();
   } finally {
     clearTimeout(timeout);
