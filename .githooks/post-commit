@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -e
+
+# Auto-push after every commit
+branch=$(git rev-parse --abbrev-ref HEAD)
+if git rev-parse --abbrev-ref @{u} >/dev/null 2>&1; then
+  echo "[post-commit] Auto pushing to upstream for $branch..."
+  git push
+else
+  echo "[post-commit] No upstream set for $branch; skipping auto push. Run:\n  git push --set-upstream origin $branch"
+fi
