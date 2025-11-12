@@ -1483,16 +1483,20 @@ app.get("/auth/callback", async (req, res) => {
 // 1) Enable GTM
 app.post("/api/gtm/enable", async (req, res) => {
   try {
-    const { shop, accessToken, gtmId } = req.body || {};
+    const { shop, gtmId } = req.body || {};
     
     // Validate inputs
     if (!shop || !isValidShopDomain(shop)) {
       return sendError(res, 400, "Invalid shop domain");
     }
     
-    if (!accessToken || !accessToken.startsWith("shpat_")) {
-      return sendError(res, 400, "Invalid access token");
+    // Get access token from database
+    const shopData = getShop(shop);
+    if (!shopData || !shopData.access_token) {
+      return sendError(res, 401, "Shop not authenticated. Please install the app first.");
     }
+    
+    const accessToken = shopData.access_token;
 
     const desiredId = (gtmId || DEFAULT_GTM_ID || "").trim();
     if (!/^GTM-[A-Za-z0-9_-]+$/.test(desiredId)) {
@@ -1522,15 +1526,19 @@ app.post("/api/gtm/enable", async (req, res) => {
 // 2) Enable DataLayer
 app.post("/api/datalayer/enable", async (req, res) => {
   try {
-    const { shop, accessToken } = req.body || {};
+    const { shop } = req.body || {};
     
     if (!shop || !isValidShopDomain(shop)) {
       return sendError(res, 400, "Invalid shop domain");
     }
     
-    if (!accessToken || !accessToken.startsWith("shpat_")) {
-      return sendError(res, 400, "Invalid access token");
+    // Get access token from database
+    const shopData = getShop(shop);
+    if (!shopData || !shopData.access_token) {
+      return sendError(res, 401, "Shop not authenticated. Please install the app first.");
     }
+    
+    const accessToken = shopData.access_token;
     
     log.shopify.apiCall("POST", "/api/datalayer/enable", shop);
 
@@ -1557,15 +1565,19 @@ app.post("/api/datalayer/enable", async (req, res) => {
 // 3) Create/Update Custom Web Pixel (Customer events)
 app.post("/api/pixel/enable", async (req, res) => {
   try {
-    const { shop, accessToken, name = "analyticsgtm Pixel" } = req.body || {};
+    const { shop, name = "analyticsgtm Pixel" } = req.body || {};
     
     if (!shop || !isValidShopDomain(shop)) {
       return sendError(res, 400, "Invalid shop domain");
     }
     
-    if (!accessToken || !accessToken.startsWith("shpat_")) {
-      return sendError(res, 400, "Invalid access token");
+    // Get access token from database
+    const shopData = getShop(shop);
+    if (!shopData || !shopData.access_token) {
+      return sendError(res, 401, "Shop not authenticated. Please install the app first.");
     }
+    
+    const accessToken = shopData.access_token;
     
     log.shopify.apiCall("POST", "/api/pixel/enable", shop);
 
@@ -1694,9 +1706,8 @@ app.get("/admin/settings", (req, res) => {
       `<p class="muted" style="margin-bottom:0">Configure GTM and DataLayer for your Shopify store</p>`
     }
     
-    <!-- Hidden fields for shop and token - auto-filled from database -->
+    <!-- Hidden field for shop only - token retrieved from database -->
     <input type="hidden" id="shop" value="${shop}">
-    <input type="hidden" id="tok" value="${shopData?.access_token || ''}">
   </div>
   
   ${!isAuthenticated ? `
@@ -1818,7 +1829,7 @@ if (btnOAuth) {
 var btnGtm = document.getElementById('btn-gtm');
 if (btnGtm) {
   btnGtm.addEventListener('click', async function () {
-    const payload = { shop: val('shop'), accessToken: val('tok'), gtmId: val('gtm') };
+    const payload = { shop: val('shop'), gtmId: val('gtm') };
     try {
       const r = await fetch('/api/gtm/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const j = await r.json().catch(function(){return{};});
@@ -1832,7 +1843,7 @@ if (btnGtm) {
 var btnDl = document.getElementById('btn-dl');
 if (btnDl) {
   btnDl.addEventListener('click', async function () {
-    const payload = { shop: val('shop'), accessToken: val('tok') };
+    const payload = { shop: val('shop') };
     try {
       const r = await fetch('/api/datalayer/enable', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
       const j = await r.json().catch(function(){return{};});
