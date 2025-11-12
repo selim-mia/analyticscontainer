@@ -2152,6 +2152,27 @@ app.get("/debug/theme-assets", async (req, res) => {
 // Health endpoint
 app.get("/healthz", (_req, res) => res.json({ ok: true }));
 
+// Debug endpoint: attempt to PUT a small asset to test write permission
+app.post("/debug/put-asset", async (req, res) => {
+  try {
+    const shop = req.query.shop;
+    const key = (req.query.key || "assets/gtm-debug.txt").toString();
+    if (!shop || !isValidShopDomain(shop)) {
+      return res.status(400).json({ ok:false, error:"Provide ?shop=your-store.myshopify.com" });
+    }
+    const shopData = getShop(shop);
+    if (!shopData?.access_token) {
+      return res.status(404).json({ ok:false, error:"No stored token. Install the app first." });
+    }
+    const themeId = await getMainThemeId(shop, shopData.access_token);
+    const value = `gtm debug ${new Date().toISOString()}\n`;
+    await putAsset(shop, shopData.access_token, themeId, key, value);
+    return res.json({ ok:true, shop, themeId, key });
+  } catch (e) {
+    return res.status(400).json({ ok:false, error: e.message });
+  }
+});
+
 app.listen(PORT, () => {
   log.info(`analyticsgtm server running on port ${PORT}`);
   console.log(`✅ Server: http://localhost:${PORT}`);
