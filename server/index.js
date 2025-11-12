@@ -162,11 +162,13 @@ async function shopifyFetch(shop, accessToken, path, opts = {}) {
       signal: controller.signal,
     });
     if (!res.ok) {
-      const errorText = await res.text();
+      const rawText = await res.text();
+      let parsed = null;
+      try { parsed = JSON.parse(rawText); } catch(_) {}
       log.error(`Shopify API failed: ${opts.method || 'GET'} ${path}`, { 
         shop, 
         status: res.status, 
-        error: errorText,
+        error: rawText,
         url
       });
       if (res.status === 404 && /\/themes\/.+\/assets\.json/i.test(path)) {
@@ -174,7 +176,10 @@ async function shopifyFetch(shop, accessToken, path, opts = {}) {
           "Theme asset endpoint returned 404. Likely causes: missing write permissions (write_themes or write_theme_code), invalid key, or theme unavailable."
         );
       }
-      throw new Error(`Shopify ${res.status} ${errorText}`);
+      if (parsed && parsed.errors) {
+        throw new Error(`Shopify ${res.status} ${JSON.stringify(parsed.errors)}`);
+      }
+      throw new Error(`Shopify ${res.status} ${rawText}`);
     }
     return res.json();
   } finally {
@@ -2118,6 +2123,29 @@ app.get("/debug/access_scopes", async (req, res) => {
     res.status(r.status).json({ ok: r.ok, status: r.status, scopes: json.access_scopes || [], raw: json });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// Debug endpoint: list first N theme assets for inspection
+app.get("/debug/theme-assets", async (req, res) => {
+  const shop = req.query.shop;
+  const limit = parseInt(req.query.limit || "25", 10);
+  if (!shop || !isValidShopDomain(shop)) {
+    return res.status(400).json({ ok:false, error:"Provide ?shop=your-store.myshopify.com" });
+  }
+  const shopData = getShop(shop);
+  if (!shopData?.access_token) {
+    return res.status(404).json({ ok:false, error:"Install app first" });
+  }
+  try {
+    const themes = await shopifyFetch(shop, shopData.access_token, "/themes.json", { method:"GET" });
+    const main = themes.themes.find(t=>t.role==="main") || themes.themes[0];
+    if (!main) return res.status(404).json({ ok:false, error:"No themes found" });
+    const list = await shopifyFetch(shop, shopData.access_token, `/themes/${main.id}/assets.json`, { method:"GET" });
+    const assets = (list.assets||[]).slice(0, limit).map(a=>({key:a.key, public_url:a.public_url||null, size:a.size}));
+    res.json({ ok:true, shop, themeId: main.id, count:list.assets?.length||0, sample:assets });
+  } catch(e) {
+    res.status(500).json({ ok:false, error:e.message });
   }
 });
 
