@@ -4,7 +4,7 @@ import { log } from "./logger.js";
 
 const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
 const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
-const SCOPES = process.env.SCOPES || "write_themes,read_themes";
+const SCOPES = process.env.SCOPES || "read_themes,write_themes";
 
 // Use RENDER_EXTERNAL_URL (automatically provided by Render) or fallback to HOST
 const HOST = process.env.RENDER_EXTERNAL_URL || process.env.HOST || "https://analyticsgtm.onrender.com";
