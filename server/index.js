@@ -2045,6 +2045,26 @@ app.get("/debug/oauth-url", (req, res) => {
   });
 });
 
+// Debug endpoint to clear shop from database
+app.get("/debug/clear-shop", (req, res) => {
+  const shop = req.query.shop;
+  if (!shop) {
+    return res.json({ error: "Missing shop parameter" });
+  }
+  
+  try {
+    const deleted = deleteShop(shop);
+    res.json({ 
+      ok: true, 
+      shop, 
+      deleted,
+      message: deleted ? "Shop removed from database" : "Shop not found in database"
+    });
+  } catch (error) {
+    res.json({ ok: false, error: error.message });
+  }
+});
+
 app.listen(PORT, () => {
   log.info(`analyticsgtm server running on port ${PORT}`);
   console.log(`✅ Server: http://localhost:${PORT}`);
