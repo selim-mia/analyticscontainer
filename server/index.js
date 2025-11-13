@@ -1458,16 +1458,16 @@ app.get("/auth/callback", async (req, res) => {
       return sendError(res, 403, "OAuth verification failed", error.message);
     }
     
-    // Exchange code for access token
-    const { accessToken, scope } = await exchangeCodeForToken(shop, code);
-    
-    // Save to database
-    const saved = saveShop(shop, accessToken, scope);
-    
-    if (!saved) {
-      log.error("Failed to save shop to database", null, { shop });
-      return sendError(res, 500, "Failed to save shop credentials");
-    }
+  // Exchange code for access token
+  const { accessToken, scope } = await exchangeCodeForToken(shop, code);
+
+  // Save to database (saveShop is async)
+  const saved = await saveShop(shop, accessToken, scope);
+
+  if (!saved) {
+    log.error("Failed to save shop to database", null, { shop });
+    return sendError(res, 500, "Failed to save shop credentials");
+  }
     
     log.info("Shop installed successfully", { shop, scope });
     // Warn if required scopes are missing
@@ -1526,8 +1526,8 @@ app.post("/api/gtm/enable", async (req, res) => {
     }
     
     // Get access token: prefer request body (compat mode), else database
-    const shopData = getShop(shop);
-    const accessToken = accessTokenFromBody || shopData?.access_token;
+      const shopData = await getShop(shop);
+      const accessToken = accessTokenFromBody || shopData?.access_token;
     if (!accessToken) {
       return sendError(res, 401, "Missing access token. Install the app or pass accessToken in request body.");
     }
@@ -1567,8 +1567,9 @@ app.post("/api/datalayer/enable", async (req, res) => {
     }
     
     // Get access token: prefer request body (compat mode), else database
-    const shopData = getShop(shop);
-    const accessToken = accessTokenFromBody || shopData?.access_token;
+      const shopData = await getShop(shop);
+      const accessToken = accessTokenFromBody || shopData?.access_token;
+
     if (!accessToken) {
       return sendError(res, 401, "Missing access token. Install the app or pass accessToken in request body.");
     }
@@ -1605,7 +1606,7 @@ app.post("/api/pixel/enable", async (req, res) => {
     }
     
     // Get access token: prefer request body (compat mode), else database
-    const shopData = getShop(shop);
+    const shopData = await getShop(shop);
     const accessToken = accessTokenFromBody || shopData?.access_token;
     if (!accessToken) {
       return sendError(res, 401, "Missing access token. Install the app or pass accessToken in request body.");
@@ -1685,7 +1686,7 @@ app.get("/api/pixel/source", (req, res) => {
 
 
 // ---------- Simple Embedded UI ----------
-app.get("/admin/settings", (req, res) => {
+app.get("/admin/settings", async (req, res) => {
   const shop = req.query.shop || "";
   const installed = req.query.installed === "true";
   
@@ -1693,10 +1694,9 @@ app.get("/admin/settings", (req, res) => {
   let shopData = null;
   let isAuthenticated = false;
   if (shop && isValidShopDomain(shop)) {
-    shopData = getShop(shop);
+    shopData = await getShop(shop);
     isAuthenticated = !!shopData;
-  }
-  
+  }  
   const successMessage = installed ? 
     `<div class="toast ok" style="display:block">✅ App installed successfully! You can now configure GTM and DataLayer below.</div>` : '';
   
@@ -1957,7 +1957,7 @@ app.post(
       log.shopify.webhook("app/uninstalled", shop);
 
       // Load access token from database
-      const shopData = getShop(shop);
+      const shopData = await getShop(shop);
       
       if (!shopData || !shopData.access_token) {
         log.warn("No stored access token for shop - cannot auto-clean", { shop });
@@ -2105,7 +2105,7 @@ app.get("/debug/access_scopes", async (req, res) => {
   if (!shop || !isValidShopDomain(shop)) {
     return res.status(400).json({ ok: false, error: "Provide ?shop=your-store.myshopify.com" });
   }
-  const shopData = getShop(shop);
+  const shopData = await getShop(shop);
   if (!shopData || !shopData.access_token) {
     return res.status(404).json({ ok: false, error: "No stored access token for this shop" });
   }
