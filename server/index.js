@@ -161,26 +161,34 @@ async function shopifyFetch(shop, accessToken, path, opts = {}) {
       },
       signal: controller.signal,
     });
-    if (!res.ok) {
-      const rawText = await res.text();
-      let parsed = null;
-      try { parsed = JSON.parse(rawText); } catch(_) {}
-      log.error(`Shopify API failed: ${opts.method || 'GET'} ${path}`, { 
-        shop, 
-        status: res.status, 
-        error: rawText,
-        url
-      });
-      if (res.status === 404 && /\/themes\/.+\/assets\.json/i.test(path)) {
-        throw new Error(
-          "Theme asset endpoint returned 404. Likely causes: missing write permissions (write_themes or write_theme_code), invalid key, or theme unavailable."
-        );
-      }
-      if (parsed && parsed.errors) {
-        throw new Error(`Shopify ${res.status} ${JSON.stringify(parsed.errors)}`);
-      }
-      throw new Error(`Shopify ${res.status} ${rawText}`);
+      if (!res.ok) {
+    const rawText = await res.text();
+    let parsed = null;
+    try { parsed = JSON.parse(rawText); } catch (_) {}
+
+    log.error(`Shopify API failed: ${opts.method || 'GET'} ${path}`, {
+      shop,
+      status: res.status,
+      rawText,
+      url
+    });
+
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`Unauthorized (${res.status}): Invalid API key or access token`);
     }
+
+    if (res.status === 404 && /\/themes\/.+\/assets\.json/i.test(path)) {
+      throw new Error(
+        `Theme asset endpoint returned 404. সম্ভবত: write permission নাই বা theme file unavailable. (${rawText})`
+      );
+    }
+
+    if (parsed && parsed.errors) {
+      throw new Error(`Shopify ${res.status} ${JSON.stringify(parsed.errors)}`);
+    }
+    throw new Error(`Shopify ${res.status} ${rawText}`);
+  }
+
     return res.json();
   } finally {
     clearTimeout(timeout);
